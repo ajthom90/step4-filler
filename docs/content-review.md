@@ -213,6 +213,7 @@ How it behaves, for context:
 - If another tab changed the save, this page never overwrites it on its own. Reloading is the default; replacing it is a separate, confirmed step that covers one save only.
 - Opening a password-protected file over a readable browser save switches the browser save to that file's password, so its contents are never written as readable text.
 - Opening a password-protected file stops browser saving first and resumes it only after the password-protected write succeeds. If that fails, nothing is saved in the browser, the old browser copy is untouched, and saving it as readable text needs an explicit choice that shows the warning.
+- A tab that is behind another tab's newer save never replaces a password-protected save with readable text; it offers reload and a download only.
 - Stopping browser saving deletes the saved copy, so a readable copy is never left behind unknowingly.
 
 | Name in copy.ts | Wording |
@@ -254,6 +255,7 @@ How it behaves, for context:
 | tooLarge | Your inventory is bigger than this site can save or open again (5 MB). It can't be saved in this browser, and it can't be downloaded either. Shorten the longest entries, then try again. |
 | downloadFailed | Couldn't make the file. Your work is still open on this page. |
 | stale | Another tab changed the save in this browser. Reload this page to see the newer version. Anything you changed on this page since will be lost, so download a file first if you want to keep it. |
+| staleNoReplace | The newer save in this browser is protected with a password, and this page would save readable text, so replacing it is not offered. Reload to see it, or download a file to keep what is open here. |
 | staleBanner | Another tab saved a newer version of this inventory. Reload this page to see it. This page will not overwrite it. Changes made on this page since then are not saved. |
 | staleReload | Reload this page |
 | staleReplace | Replace the other tab’s save with what is open here |

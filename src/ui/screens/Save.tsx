@@ -6,7 +6,7 @@ import { createKey, decrypt, type Envelope, type SessionKey } from '../../core/c
 import type { InventoryDoc } from '../../core/doc';
 import { MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
 import { FileError } from '../../core/validate';
-import { currentState, downloadBackup, eraseBrowserData, openDocument, useApp } from '../store';
+import { downloadBackup, eraseBrowserData, isStale, openDocument, storedSaveIsEncrypted, useApp } from '../store';
 
 const MIN_PASSWORD = 8;
 
@@ -15,7 +15,7 @@ type Message = { kind: 'ok' | 'error'; text: string } | null;
 /** Why a save or download did not happen, in words for the person. */
 function failureText(err: unknown): string {
   if (err instanceof FileError && err.code === 'too-large') return saveCopy.tooLarge;
-  if (currentState().saveStatus === 'stale') return saveCopy.stale;
+  if (isStale()) return saveCopy.stale;
   return saveCopy.saveFailed;
 }
 
@@ -265,13 +265,13 @@ export function Save() {
     });
   };
 
-  const downloadFile = (withPassword: boolean) => {
-    if (withPassword && !encrypted) {
+  const downloadFile = (withPassword: boolean, held?: SessionKey) => {
+    if (withPassword && !encrypted && !held) {
       const problem = passwordProblem(password, again);
       if (problem) return refuse(problem);
     }
     void run(async () => {
-      const session = encrypted ? mode.session : withPassword ? await createKey(password) : undefined;
+      const session = encrypted ? mode.session : held ?? (withPassword ? await createKey(password) : undefined);
       return saveCopy.downloaded(await downloadBackup(session));
     });
   };
@@ -313,6 +313,9 @@ export function Save() {
     setMessage(eraseBrowserData(true) ? { kind: 'ok', text: saveCopy.stopped } : { kind: 'error', text: saveCopy.stopFailed });
   };
 
+  // A readable page never replaces a password-protected save.
+  const heldSession = encrypted ? mode.session : mode.kind === 'none' ? state.requiredSession : null;
+  const canReplace = !stale || heldSession !== null || !storedSaveIsEncrypted();
   const browserOk = saver.browserSaveAvailable;
   const where = mode.kind === 'none' ? saveCopy.rightNow.none : encrypted ? saveCopy.rightNow.encrypted : saveCopy.rightNow.plain;
 
@@ -329,9 +332,10 @@ export function Save() {
         <section class="notice alert" aria-labelledby="stale-title">
           <h2 id="stale-title">{saveCopy.staleReplaceHeading}</h2>
           <p>{saveCopy.stale}</p>
+          {!canReplace && <p>{saveCopy.staleNoReplace}</p>}
           <p class="actions">
             <button type="button" class="primary" onClick={() => window.location.reload()}>{saveCopy.staleReload}</button>
-            {asking !== 'replace' && <button type="button" onClick={() => setAsking('replace')}>{saveCopy.staleReplace}</button>}
+            {canReplace && asking !== 'replace' && <button type="button" onClick={() => setAsking('replace')}>{saveCopy.staleReplace}</button>}
           </p>
           {asking === 'replace' && (
             <Confirm
@@ -421,10 +425,10 @@ export function Save() {
         <p class="note">{saveCopy.openNote}</p>
         {stale && !armed && (
           <>
-            {!encrypted && <p>{PLAIN_WARNING}</p>}
+            {!heldSession && <p>{PLAIN_WARNING}</p>}
             <p class="actions">
-              <button type="button" disabled={busy} onClick={() => downloadFile(encrypted)}>
-                {encrypted ? saveCopy.labels.downloadPassword : saveCopy.labels.downloadPlain}
+              <button type="button" disabled={busy} onClick={() => downloadFile(heldSession !== null, heldSession ?? undefined)}>
+                {heldSession ? saveCopy.labels.downloadPassword : saveCopy.labels.downloadPlain}
               </button>
             </p>
           </>

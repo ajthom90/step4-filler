@@ -60,7 +60,7 @@ function Screen({ route }: { route: Route }) {
 }
 
 export function App() {
-  const { state } = useApp();
+  const { state, saver } = useApp();
   const main = useRef<HTMLElement>(null);
   const first = useRef(true);
   const hash = routeHash(state.route);
@@ -82,7 +82,7 @@ export function App() {
         {state.doc && <LockButton />}
         {state.doc && <SaveStatus />}
       </header>
-      {state.saveStatus === 'stale' && (
+      {saver.isStale && (
         <p class="notice alert" role="alert">{saveCopy.staleBanner}</p>
       )}
       <SavePrompt />

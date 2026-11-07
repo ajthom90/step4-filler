@@ -73,6 +73,8 @@ export const saveCopy = {
   stale:
     'Another tab changed the save in this browser. Reload this page to see the newer version. ' +
     'Anything you changed on this page since will be lost, so download a file first if you want to keep it.',
+  staleNoReplace:
+    'The newer save in this browser is protected with a password, and this page would save readable text, so replacing it is not offered. Reload to see it, or download a file to keep what is open here.',
   staleBanner:
     'Another tab saved a newer version of this inventory. Reload this page to see it. This page will not overwrite it. ' +
     'Changes made on this page since then are not saved.',

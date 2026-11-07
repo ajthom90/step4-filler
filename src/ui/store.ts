@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Envelope, SessionKey } from '../core/crypto';
 import type { InventoryDoc } from '../core/doc';
-import { Saver, type SaveMode, type SaveStatus } from '../core/saver';
+import { Saver, STORAGE_KEY, type SaveMode, type SaveStatus } from '../core/saver';
 import { FileError } from '../core/validate';
 import { backupFileName, parseSaved } from '../core/fileformat';
 import { downloadText } from './download';
@@ -146,7 +146,9 @@ function resumeSaving(mode: SaveMode): void {
     saver.resume(mode);
     state = { ...state, mode, requiredSession: mode.kind === 'browser-encrypted' ? mode.session : state.requiredSession };
   } catch {
-    // Stale: the status already says so, and only an explicit replace can write.
+    // Stale: the status already says so, and only an explicit replace can write. The password is
+    // kept so that Lock, a protected download and a protected replace remain possible.
+    if (mode.kind === 'browser-encrypted') state = { ...state, requiredSession: mode.session };
   }
 }
 
@@ -198,6 +200,21 @@ export function dismissPrompt(): void {
   set({ editsSincePrompt: 0, promptDismissed: true });
 }
 
+/** Whether the save now in browser storage is password-protected. */
+export function storedSaveIsEncrypted(): boolean {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw !== null && parseSaved(raw).kind === 'encrypted';
+  } catch {
+    return false;
+  }
+}
+
+/** Whether another tab's newer save is unseen. Unlike the status, a failed attempt does not hide it. */
+export function isStale(): boolean {
+  return saver.isStale;
+}
+
 export function currentState(): AppState {
   return state;
 }
@@ -208,13 +225,13 @@ function hasUnsavedWork(): boolean {
   if (!doc) return false;
   if (mode.kind === 'none') return doc !== cleanDoc;
   // A stale tab never writes, so anything changed here since the last save is lost on leaving.
-  if (saveStatus === 'stale') return doc !== savedDoc;
+  if (saver.isStale) return doc !== savedDoc;
   return saveStatus === 'unsaved' || saveStatus === 'saving' || saveStatus === 'failed';
 }
 
 /** In a stale tab, whether this page holds changes that the save does not. */
 export function hasStaleEdits(): boolean {
-  return state.saveStatus === 'stale' && state.doc !== savedDoc;
+  return saver.isStale && state.doc !== savedDoc;
 }
 
 /** Downloads the inventory as a file, under `session` if given, and returns the file name. */
@@ -234,16 +251,25 @@ export function markDownloaded(doc: InventoryDoc): void {
 }
 
 /**
+ * Lock is offered with a password-protected browser save, and in a tab that opened a password-protected
+ * save which another tab has since changed (so the password is known but nothing can be written).
+ */
+export function canLock(): boolean {
+  const { mode, requiredSession } = state;
+  return mode.kind === 'browser-encrypted' || (mode.kind === 'none' && requiredSession !== null && saver.isStale);
+}
+
+/**
  * Clears the inventory and the key from memory. The latest changes are written first, and if
  * they cannot be, nothing is cleared and this rejects, so typed text is never dropped silently.
  */
 async function lock(options?: { discardStale?: boolean }): Promise<void> {
-  if (state.mode.kind !== 'browser-encrypted' || !state.doc) throw new Error('Lock needs a password-protected browser save');
-  if (state.saveStatus === 'stale') {
+  if (!state.doc || !canLock()) throw new Error('Lock needs a password-protected browser save');
+  flushDraft(); // text typed but not yet added counts as part of the inventory on every path
+  if (saver.isStale) {
     // Nothing can be written from a stale tab, so the caller must have said the changes may go.
     if (hasStaleEdits() && !options?.discardStale) throw new Error('Changes on this page are not in the save');
   } else {
-    flushDraft();
     await saver.flush();
     if (state.saveStatus !== 'saved') throw new Error('The latest changes are not saved');
   }
