@@ -8,6 +8,8 @@ import { backupFileName, parseSaved } from '../core/fileformat';
 import { downloadText } from './download';
 import { parseRoute, routeHash, type Route } from './router';
 
+export type LockedStored = 'nothing' | 'readable' | 'unreadable';
+
 export interface AppState {
   doc: InventoryDoc | null;
   route: Route;
@@ -27,6 +29,8 @@ export interface AppState {
   /** Whether cleanDoc was downloaded or opened as a file, as opposed to never having been edited. */
   hasFile: boolean;
   locked: boolean;
+  /** What browser storage held when Lock was used, unless it was a password-protected save (see pendingEnvelope). */
+  lockedStored: LockedStored | null;
   /** Set when the stored save could not be read. It is left untouched, and nothing is written over it. */
   loadProblem: string | null;
   /** An encrypted save waiting for its password (the unlock screen, Task 11). */
@@ -98,6 +102,7 @@ function start(): void {
     cleanDoc: null,
     hasFile: false,
     locked: false,
+    lockedStored: null,
     loadProblem: null,
     pendingEnvelope: null,
     notice: null,
@@ -274,6 +279,23 @@ export function canLock(): boolean {
 }
 
 /**
+ * What is in browser storage right now, for the locked screen. A read that fails says nothing about what is
+ * there, so it counts as unreadable, never as nothing stored. Never throws.
+ */
+function readStoredForLock(): { lockedStored: LockedStored | null; pendingEnvelope: Envelope | null } {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return { lockedStored: 'nothing', pendingEnvelope: null };
+    const parsed = parseSaved(raw);
+    return parsed.kind === 'encrypted'
+      ? { lockedStored: null, pendingEnvelope: parsed.envelope }
+      : { lockedStored: 'readable', pendingEnvelope: null };
+  } catch {
+    return { lockedStored: 'unreadable', pendingEnvelope: null };
+  }
+}
+
+/**
  * Clears the inventory and the key from memory. Returns 'confirm', clearing nothing, when this browser does
  * not hold the latest changes under the password (saving failed, another tab got there first, or nothing is
  * being saved); the caller asks, and calls again with `discard` to lock anyway.
@@ -286,16 +308,10 @@ async function lock(options?: { discard?: boolean }): Promise<'locked' | 'confir
   if (!held && !options?.discard) return 'confirm';
   saver.lock();
   savedDoc = null; // nothing readable is kept once the screen is cleared
-  let pendingEnvelope: Envelope | null = null;
-  try {
-    const parsed = parseSaved(saver.loadRaw() ?? '');
-    if (parsed.kind === 'encrypted') pendingEnvelope = parsed.envelope;
-  } catch {
-    // Whatever is stored is left as it is; the locked screen says nothing on this page is kept.
-  }
+  saver.loadRaw(); // what is stored is the saver's new baseline, and is left as it is
   dirty = false;
   set({
-    doc: null, locked: true, mode: { kind: 'none' }, pendingEnvelope, cleanDoc: null, hasFile: false, requiredSession: null,
+    doc: null, locked: true, ...readStoredForLock(), mode: { kind: 'none' }, cleanDoc: null, hasFile: false, requiredSession: null,
     editsSincePrompt: 0, promptDismissed: false, route: { name: 'unlock' }, saveStatus: 'unsaved', notice: null,
   });
   return 'locked';
@@ -307,7 +323,7 @@ export function unlockWith(doc: InventoryDoc, session: SessionKey): void {
   const route: Route = wanted.name === 'unlock' ? { name: 'home' } : wanted;
   dirty = false;
   savedDoc = doc;
-  set({ doc, pendingEnvelope: null, locked: false, cleanDoc: doc, hasFile: false, editsSincePrompt: 0, promptDismissed: false, route });
+  set({ doc, pendingEnvelope: null, locked: false, lockedStored: null, cleanDoc: doc, hasFile: false, editsSincePrompt: 0, promptDismissed: false, route });
   if (wanted.name === 'unlock') go(route);
   // The save was just read; resuming leaves its bytes untouched, and a stale one stays unwritten.
   resumeSaving({ kind: 'browser-encrypted', session });
@@ -329,7 +345,7 @@ export async function openDocument(doc: InventoryDoc, fileSession?: SessionKey):
   if (previous.kind !== 'none') saver.lock();
   dirty = false;
   set({
-    doc, pendingEnvelope: null, locked: false, loadProblem: null, mode: { kind: 'none' }, saveStatus: 'unsaved', notice: null,
+    doc, pendingEnvelope: null, locked: false, lockedStored: null, loadProblem: null, mode: { kind: 'none' }, saveStatus: 'unsaved', notice: null,
     requiredSession: fileSession ?? null, cleanDoc: doc, hasFile: true, editsSincePrompt: 0, promptDismissed: false,
   });
   go({ name: 'home' });
@@ -358,7 +374,7 @@ export function eraseBrowserData(keepOpen: boolean): boolean {
     dirty = false;
     savedDoc = null;
     set({
-      doc: null, pendingEnvelope: null, locked: false, loadProblem: null, cleanDoc: null, hasFile: false, requiredSession: null,
+      doc: null, pendingEnvelope: null, locked: false, lockedStored: null, loadProblem: null, cleanDoc: null, hasFile: false, requiredSession: null,
       editsSincePrompt: 0, promptDismissed: false, notice: null,
     });
     go({ name: 'welcome' });

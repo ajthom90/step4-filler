@@ -5,6 +5,12 @@ import { FileError } from '../../core/validate';
 import { unlockWith, useApp } from '../store';
 import { EraseEverything, OpenFile } from './Save';
 
+const LOCKED_TEXT = {
+  nothing: saveCopy.lockedNothingSaved,
+  readable: saveCopy.lockedReadableCopy,
+  unreadable: saveCopy.lockedUnreadableCopy,
+};
+
 export function Unlock() {
   const { state } = useApp();
   const envelope = state.pendingEnvelope;
@@ -48,10 +54,14 @@ export function Unlock() {
           </p>
         </form>
       ) : (
-        <p class="notice">{state.locked ? saveCopy.lockedNothingKept : saveCopy.unlockProblem}</p>
+        <p class="notice">{state.lockedStored ? LOCKED_TEXT[state.lockedStored] : saveCopy.unlockProblem}</p>
       )}
-      <h2>{saveCopy.forgotHeading}</h2>
-      <p>{saveCopy.forgotText}</p>
+      {envelope && (
+        <>
+          <h2>{saveCopy.forgotHeading}</h2>
+          <p>{saveCopy.forgotText}</p>
+        </>
+      )}
       <OpenFile />
       <EraseEverything />
     </>

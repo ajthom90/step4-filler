@@ -1035,7 +1035,8 @@ test('R7b revised: after a failed upgrade from Home, Lock shows, warns, clears t
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
   await expect(page.locator('body')).not.toContainText(SECRET)
   await expect(page.locator('body')).not.toContainText(SENTINEL)
-  await expect(main(page)).toContainText(saveCopy.lockedNothingKept)
+  await expect(main(page)).toContainText(saveCopy.lockedReadableCopy)
+  await expect(forgotHeading(page)).toHaveCount(0)
   expect(await stored(page)).toBe(old)
   await failWrites(page, false)
   await page.reload()
@@ -1048,4 +1049,123 @@ test('R7b revised: a tab that chose a readable save has no Lock', async ({ page 
   await beginWithSentinel(page)
   await saveInBrowser(page, 'plain')
   await expect(page.getByRole('button', { name: 'Lock', exact: true })).toHaveCount(0)
+})
+
+const forgotHeading = (page: Page) => page.getByRole('heading', { name: saveCopy.forgotHeading })
+
+/** Opens the password file on the first-visit screen, so nothing is in browser storage unless a test puts it there. */
+async function openSecretFromWelcome(page: Page, file: { name: string; text: string }) {
+  await page.goto('/')
+  await openFile(page, { name: file.name, buffer: Buffer.from(file.text) })
+  await page.getByLabel('Password for this file').fill(FILE_PASSWORD)
+  await page.getByRole('button', { name: 'Open file' }).click()
+  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+}
+
+/** Locks an inventory this browser does not hold, which asks first. */
+async function lockAndDiscard(page: Page) {
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  await page.getByRole('group', { name: saveCopy.lockStaleHeading }).getByRole('button', { name: saveCopy.lockStaleYes }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await expect(page.locator('body')).not.toContainText(SECRET)
+}
+
+const putInStorage = (page: Page, value: string) => page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, value])
+
+test('locked screen, nothing stored: a password file opened on the first-visit screen', async ({ page, browser }) => {
+  const file = await secretFile(browser)
+  await openSecretFromWelcome(page, file)
+  await lockAndDiscard(page)
+  expect(await stored(page)).toBeNull()
+  await expect(main(page)).toContainText(saveCopy.lockedNothingSaved)
+  await expect(main(page)).not.toContainText('Reload')
+  await expect(forgotHeading(page)).toHaveCount(0)
+  await expect(main(page)).not.toContainText(saveCopy.forgotText)
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Before you begin') // nothing to open, as it said
+})
+
+test('locked screen, nothing stored: Lock after stopping browser saving', async ({ page }) => {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'password')
+  await page.getByRole('button', { name: 'Stop saving in this browser' }).click()
+  await page.getByRole('group', { name: saveCopy.stopHeading }).getByRole('button', { name: 'Yes, delete the saved copy' }).click()
+  await expect(main(page)).toContainText(saveCopy.stopped)
+  await lockAndDiscard(page)
+  expect(await stored(page)).toBeNull()
+  await expect(main(page)).toContainText(saveCopy.lockedNothingSaved)
+  await expect(forgotHeading(page)).toHaveCount(0)
+})
+
+test('locked screen, readable copy: says a reload opens it, and it does', async ({ page, browser }) => {
+  const file = await secretFile(browser)
+  await openSecretFromWelcome(page, file)
+  const copy = plainDoc()
+  await putInStorage(page, copy)
+  await lockAndDiscard(page)
+  await expect(main(page)).toContainText(saveCopy.lockedReadableCopy)
+  await expect(forgotHeading(page)).toHaveCount(0)
+  expect(await stored(page)).toBe(copy)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+})
+
+for (const [what, value] of [
+  ['not JSON', 'not an inventory'],
+  ['from a newer version', JSON.stringify({ ...JSON.parse(plainDoc()), version: 99 })],
+  ['a damaged password save', JSON.stringify({ format: 'step4-inventory-encrypted' })],
+] as const) {
+  test(`locked screen, unreadable copy: ${what}`, async ({ page, browser }) => {
+    const file = await secretFile(browser)
+    await openSecretFromWelcome(page, file)
+    await putInStorage(page, value)
+    await lockAndDiscard(page)
+    await expect(main(page)).toContainText(saveCopy.lockedUnreadableCopy)
+    await expect(main(page)).not.toContainText('Reload')
+    await expect(forgotHeading(page)).toHaveCount(0)
+    await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0)
+    expect(await stored(page)).toBe(value)
+  })
+}
+
+test('locked screen, password-protected copy: asks for the password and offers the forgot text', async ({ page, browser }) => {
+  const file = await secretFile(browser)
+  await openSecretFromWelcome(page, file)
+  await putInStorage(page, file.text)
+  await lockAndDiscard(page)
+  await expect(forgotHeading(page)).toBeVisible()
+  await expect(main(page)).toContainText(saveCopy.forgotText)
+  await expect(main(page)).toContainText(saveCopy.unlockText)
+  for (const text of [saveCopy.lockedNothingSaved, saveCopy.lockedReadableCopy, saveCopy.lockedUnreadableCopy]) {
+    await expect(main(page)).not.toContainText(text)
+  }
+  await page.getByLabel('Password', { exact: true }).fill(FILE_PASSWORD)
+  await page.getByRole('button', { name: 'Unlock' }).click()
+  await goTo(page, LIST)
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SECRET)
+})
+
+test('locked screen: a storage read that throws at lock time is not reported as nothing stored', async ({ page }) => {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'password')
+  await page.evaluate(() => {
+    Storage.prototype.getItem = () => { throw new DOMException('blocked', 'SecurityError') }
+  })
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await expect(main(page)).toContainText(saveCopy.lockedUnreadableCopy)
+  await expect(main(page)).not.toContainText(saveCopy.lockedNothingSaved)
+  await expect(forgotHeading(page)).toHaveCount(0)
+})
+
+test('locked screen: storage blocked from the start is not reported as nothing stored', async ({ page, browser }) => {
+  const file = await secretFile(browser)
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('blocked', 'SecurityError') } })
+  })
+  await openSecretFromWelcome(page, file)
+  await lockAndDiscard(page)
+  await expect(main(page)).toContainText(saveCopy.lockedUnreadableCopy)
+  await expect(main(page)).not.toContainText(saveCopy.lockedNothingSaved)
+  await expect(forgotHeading(page)).toHaveCount(0)
 })

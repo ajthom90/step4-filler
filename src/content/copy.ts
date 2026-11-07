@@ -117,8 +117,12 @@ export const saveCopy = {
   lockStaleHeading: 'Lock and lose your latest changes?',
   lockStaleText:
     "The latest changes on this page aren't saved in this browser under your password (saving failed, another tab saved a newer version, or nothing is being saved here), so they will be lost if you lock. Download a file first if you want to keep them.",
-  lockedNothingKept:
+  lockedNothingSaved:
+    'Locked. Nothing from your inventory is kept on this page now, and nothing is saved in this browser. To carry on, open a downloaded file.',
+  lockedReadableCopy:
     'Locked. Nothing from your inventory is kept on this page now. The copy saved in this browser has not been changed. Reload this page to open it, or open a downloaded file.',
+  lockedUnreadableCopy:
+    "Locked. Nothing from your inventory is kept on this page now. What is saved in this browser can't be read here, and it has not been changed. To carry on, open a downloaded file.",
   lockStaleYes: 'Lock and discard those changes',
   lockFailed:
     "Couldn't lock, because the latest changes couldn't be saved. Nothing was cleared. Download a file to keep your work, then try again.",
