@@ -1,4 +1,5 @@
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type Page } from '@playwright/test'
+import { emptyDoc, type InventoryDoc } from '../../src/core/doc'
 
 /**
  * Test harness that enforces the site's security policy. Every e2e test uses
@@ -88,3 +89,22 @@ export const test = base.extend<{ guard: Guard } & Options>({
 })
 
 export { expect }
+
+const STORAGE_KEY = 'step4-inventory'
+
+/**
+ * Seeds a plain browser save and opens home, so flow tests are not interrupted by the
+ * save prompt. The seed is written only when nothing is stored yet, so a reload keeps
+ * whatever the test has typed since.
+ */
+export async function startWithBrowserSave(page: Page, doc: Partial<InventoryDoc> = {}): Promise<void> {
+  const seeded: InventoryDoc = { ...emptyDoc('alcohol', { kind: 'god', custom: '' }), ...doc }
+  await page.addInitScript(
+    ([key, value]) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, value)
+    },
+    [STORAGE_KEY, JSON.stringify(seeded)],
+  )
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+}

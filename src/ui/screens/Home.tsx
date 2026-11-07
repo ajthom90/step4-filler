@@ -1,8 +1,28 @@
-import type { InventoryId } from '../../core/flow';
+import type { InventoryDoc } from '../../core/doc';
+import { blanks, type InventoryId } from '../../core/flow';
+import { routeHash } from '../router';
+import { stepLabel } from '../stepCopy';
 import { INVENTORY_BLURBS, INVENTORY_TITLES, progressLabel } from '../stepInfo';
 import { useApp } from '../store';
 
 const INVENTORIES: InventoryId[] = ['resentments', 'fears', 'harms'];
+
+function StillBlank({ doc, inventory }: { doc: InventoryDoc; inventory: InventoryId }) {
+  const open = blanks(doc, inventory);
+  if (open.length === 0) return null;
+  return (
+    <details>
+      <summary>{open.length === 1 ? '1 step still blank' : `${open.length} steps still blank`}</summary>
+      <ul class="plain links">
+        {open.map((s) => (
+          <li key={s.key}>
+            <a href={routeHash({ name: 'step', inventory, key: s.key })}>{stepLabel(doc, s)}</a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
 export function Home() {
   const { state } = useApp();
@@ -25,6 +45,7 @@ export function Home() {
             </h2>
             <p class="progress">{progressLabel(doc, inv)}</p>
             <p>{INVENTORY_BLURBS[inv]}</p>
+            <StillBlank doc={doc} inventory={inv} />
           </li>
         ))}
         <li class="section">

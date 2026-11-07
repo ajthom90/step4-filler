@@ -3,6 +3,7 @@ import { site } from '../../site.config';
 import { Footer } from './Footer';
 import { Home } from './screens/Home';
 import { Privacy } from './screens/Privacy';
+import { StepRunner } from './screens/StepRunner';
 import { Settings } from './screens/Settings';
 import { Support } from './screens/Support';
 import { Welcome } from './screens/Welcome';
@@ -55,7 +56,10 @@ function Screen({ route }: { route: Route }) {
     case 'print': return <Placeholder title="Print or download" />;
     case 'save': return <Placeholder title="Save" />;
     case 'unlock': return <Placeholder title="Unlock" />;
-    case 'step': return <Placeholder title="This step" />;
+    case 'step':
+      return route.inventory === 'resentments'
+        ? <StepRunner inventory={route.inventory} stepKey={route.key} />
+        : <Placeholder title="This step" />; // fears and harms use the same runner once their wording is added
     default: return <Home />;
   }
 }
