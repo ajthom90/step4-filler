@@ -1,8 +1,7 @@
 {
   "name": "step4-inventory",
   "version": "0.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A private, browser-only worksheet for the Step 4 inventory (resentments, fears, and harms). Nothing leaves the device.",
   "directories": {
     "doc": "docs"
   },
@@ -18,7 +17,6 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "bugs": {
     "url": "https://github.com/ajthom90/step4-filler/issues"
   },
@@ -36,6 +34,6 @@
     "vite": "8.3.6",
     "vitest": "5.1.0"
   },
-  "private": "true",
+  "private": true,
   "type": "module"
 }

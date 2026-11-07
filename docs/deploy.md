@@ -52,7 +52,7 @@ Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'
 Referrer-Policy: no-referrer
 X-Content-Type-Options: nosniff
 Strict-Transport-Security: max-age=31536000; includeSubDomains
-Permissions-Policy: camera=(), microphone=(), geolocation=()
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 ```
 
 The offline file must also carry `Content-Disposition: attachment; filename="step4-inventory-offline.html"`.

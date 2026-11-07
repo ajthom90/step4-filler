@@ -30,4 +30,5 @@ For the owner. Nothing here is done yet.
 
 ## Release
 
+- [ ] Choose a license before publishing the repository, and add it (a `LICENSE` file and the `license` field in `package.json`). There is none yet, on purpose.
 - [ ] Decide when to make the repository public. Check first that nothing in `reference/` or `.superpowers/` is committed, and that the handout is not in the history.

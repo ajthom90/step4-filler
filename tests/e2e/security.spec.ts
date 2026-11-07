@@ -15,6 +15,8 @@ test('serves the exact security headers', async ({ request }) => {
   expect(permissions).toContain('camera=()')
   expect(permissions).toContain('microphone=()')
   expect(permissions).toContain('geolocation=()')
+  expect(permissions).toContain('payment=()')
+  expect(permissions).toContain('usb=()')
 })
 
 test('app renders with no violations', async ({ page }) => {
