@@ -18,7 +18,8 @@ For the owner. Nothing here is done yet.
 
 - [ ] On a real iPhone and a real Android phone: run an inventory, save it in the browser, close and reopen it, download a file, open that file, and print (or save as PDF).
 - [ ] Add the site to the home screen on each, and check that the saved data is still there afterward. Then add what actually happens to the save screen's wording. The specification requires this, and nothing on the site claims it yet. Do not promise protection from Safari's deletion of site data unless the test shows it.
-- [ ] Try the offline file on both phones and on a computer, and update the offline wording to what actually happens. The site currently says the file has not been tested on phones.
+- [ ] Try the offline file on both phones and on a computer, and update the offline wording to what actually happens. The site currently says the file has not been tested on phones. The offline file deliberately never uses browser storage (other local files can share it in some browsers), so confirm that its wording about saving only to files reads clearly.
+- [ ] In real Safari on macOS and on iOS, check the keyboard: Tab (with the Safari setting that lets Tab reach every control, and with Option+Tab) to the radio choices and buttons, and complete a whole entry. Automated tests skip this in WebKit because Safari's own setting decides whether Tab reaches radios and buttons.
 - [ ] Print from Firefox and Safari as well as Chromium (only Chromium has been verified). Check that the disclaimer repeats on every page, and that the landscape forms print acceptably.
 
 ## Cloudflare

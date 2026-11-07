@@ -436,3 +436,37 @@ test('Next with a name typed goes straight to that name, with no correcting redi
   expect(page.url()).toContain(`res%3Acauses%3A${id}`)
   expect(await page.evaluate(() => (window as unknown as { hashChanges: number }).hashChanges)).toBe(1)
 })
+
+test('opening a section rewrites the address without a second hash change, so typing is never interrupted', async ({ page }) => {
+  await startWithBrowserSave(page, { visited: { 'res:intro': true } })
+  await page.evaluate(() => {
+    ;(window as unknown as { hashChanges: number }).hashChanges = 0
+    window.addEventListener('hashchange', () => { (window as unknown as { hashChanges: number }).hashChanges++ })
+  })
+  await openResentments(page)
+  await expect(page).toHaveURL(/res%3Alist/)
+  await expect(page.getByLabel('A person, institution, or principle')).toBeVisible()
+  await page.waitForTimeout(300)
+  expect(await page.evaluate(() => (window as unknown as { hashChanges: number }).hashChanges)).toBe(1)
+  // Typing straight away is kept whole and nothing is split into entries.
+  await page.getByLabel('A person, institution, or principle').fill('Dana Lee')
+  await expect(page.getByLabel('A person, institution, or principle')).toHaveValue('Dana Lee')
+})
+
+test('the heading does not take focus from a field the person has already started typing in', async ({ page }) => {
+  await startWithBrowserSave(page, { visited: { 'res:intro': true } })
+  // Focus the field the moment it appears, before the app's own after-paint work runs, as a fast typist on a slow phone would.
+  await page.evaluate(() => new Promise<void>((done) => {
+    const watch = new MutationObserver(() => {
+      const field = document.querySelector<HTMLInputElement>('main form.add input[type=text]')
+      if (!field) return
+      watch.disconnect()
+      field.focus()
+      done()
+    })
+    watch.observe(document.body, { childList: true, subtree: true })
+    window.location.hash = '#/step/resentments/res%3Alist'
+  }))
+  await page.waitForTimeout(500)
+  await expect(page.getByLabel('A person, institution, or principle')).toBeFocused()
+})

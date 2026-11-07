@@ -176,3 +176,31 @@ test('the offline file itself does not offer to download itself', async ({ page 
   await expect(page.getByRole('link', { name: offlineCopy.linkLabel })).toHaveCount(0)
   await expect(main(page)).toContainText(offlineCopy.usingOffline)
 })
+
+test('the offline file never uses browser storage, even when it works', async ({ page }) => {
+  const key = 'step4-inventory'
+  const existing = JSON.stringify({ planted: 'by another local file', note: SENTINEL })
+  await page.addInitScript(([k, v]) => {
+    try { localStorage.setItem(k, v) } catch { /* the page's own storage may be unavailable on file: */ }
+    ;(window as unknown as { __writes: string[] }).__writes = []
+    const original = Storage.prototype.setItem
+    Storage.prototype.setItem = function (name: string, value: string) {
+      ;(window as unknown as { __writes: string[] }).__writes.push(name)
+      return original.call(this, name, value)
+    }
+  }, [key, existing])
+  await page.goto(OFFLINE_URL)
+  // The planted value is not loaded: the first-visit screen shows, not an unlock or a problem screen.
+  await expect(page.getByRole('heading', { name: 'Before you begin' })).toBeVisible()
+  await begin(page)
+  await enterResentment(page)
+  await goTo(page, '#/save')
+  await expect(main(page)).toContainText(offlineCopy.storageUnavailable)
+  await expect(page.getByRole('button', { name: saveCopy.labels.saveBrowserPlain })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: saveCopy.labels.saveBrowserPassword })).toHaveCount(0)
+  await page.waitForTimeout(1200) // longer than the save delay
+  const writes = await page.evaluate(() => (window as unknown as { __writes: string[] }).__writes)
+  // Only the init script's own plant may have touched storage, and it ran before the page.
+  expect(writes.filter((w) => w === key)).toEqual([])
+  expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe(existing)
+})

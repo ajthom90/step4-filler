@@ -28,11 +28,11 @@ export const offlineCopy = {
   heading: 'Offline version',
   computerOption:
     "On a computer, you can download this site as a single file that works without a connection. Open it from your Downloads folder in a browser. " +
-    "It makes no requests, and it keeps your work only where you choose: in a file you download. We haven't tested it on phones.",
+    "It makes no requests, and it keeps your work only in a file you download, never in the browser's storage. We haven't tested it on phones.",
   linkLabel: 'Download the offline version',
   usingOffline: 'You are using the offline version. It makes no connection to anything.',
   storageUnavailable:
-    "This offline file can't keep a saved copy in this browser, so saving in this browser isn't available. Download a file to keep your work, and open it here later.",
+    "This offline version saves only to files you download, by design. It never uses this browser's storage, because other files on this computer could share it. Download a file to keep your work, and open it here later.",
 };
 
 /** Wording for saving, opening, locking and erasing. The owner reviews it in docs/content-review.md (section 5c). */

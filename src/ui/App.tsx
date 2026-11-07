@@ -59,6 +59,9 @@ export function App() {
       first.current = false;
       return;
     }
+    // If the person has already started on a field of the new screen, taking focus now would cut their typing off.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && main.current?.contains(active) && active.matches('input, textarea, select')) return;
     main.current?.querySelector<HTMLElement>('h1')?.focus();
   }, [hash]);
   return (

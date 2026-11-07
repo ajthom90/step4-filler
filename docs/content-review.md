@@ -338,12 +338,12 @@ Where the wording lives: `src/content/copy.ts` (`offlineCopy`). The offline file
 | Name in copy.ts | Wording |
 | --- | --- |
 | heading | Offline version |
-| computerOption | On a computer, you can download this site as a single file that works without a connection. Open it from your Downloads folder in a browser. It makes no requests, and it keeps your work only where you choose: in a file you download. We haven't tested it on phones. |
+| computerOption | On a computer, you can download this site as a single file that works without a connection. Open it from your Downloads folder in a browser. It makes no requests, and it keeps your work only in a file you download, never in the browser's storage. We haven't tested it on phones. |
 | linkLabel | Download the offline version |
 | usingOffline | You are using the offline version. It makes no connection to anything. |
-| storageUnavailable | This offline file can't keep a saved copy in this browser, so saving in this browser isn't available. Download a file to keep your work, and open it here later. |
+| storageUnavailable | This offline version saves only to files you download, by design. It never uses this browser's storage, because other files on this computer could share it. Download a file to keep your work, and open it here later. |
 
-On the Save screen, when the browser will not let the page store anything, the two "Save in this browser" buttons are now left out instead of shown greyed. On the site the existing `rightNow.unavailable` sentence explains it; in the offline file `storageUnavailable` does.
+On the Save screen, when the browser will not let the page store anything, the two "Save in this browser" buttons are left out instead of shown greyed; on the site the existing `rightNow.unavailable` sentence explains it. In the offline file the buttons are always left out, whether or not the browser would allow storage, and `storageUnavailable` explains that this is deliberate: the offline file never reads or writes browser storage, because other local files can share it in some browsers. The `computerOption` sentence on the site says the same in brief ("only in a file you download, never in the browser's storage").
 
 ### Printing
 

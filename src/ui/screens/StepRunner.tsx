@@ -97,7 +97,7 @@ function Finished({ inventory }: { inventory: InventoryId }) {
 }
 
 export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; stepKey?: string }) {
-  const { state, update, go } = useApp();
+  const { state, update, go, settle } = useApp();
   const doc = state.doc!;
 
   const requested = stepKey === undefined ? undefined : stepsFor(doc, inventory).find((s) => s.key === stepKey);
@@ -106,7 +106,8 @@ export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; ste
 
   // Keep the address on the step shown, so a reload or a bookmark returns to it.
   useEffect(() => {
-    if (!requested && window.location.hash !== wanted) window.location.replace(wanted);
+    if (!requested && step) settle(stepRoute(inventory, step.key));
+    else if (!requested && window.location.hash !== wanted) window.history.replaceState(window.history.state, '', wanted);
   }, [requested, wanted]);
 
   // A step already passed when it was opened is being reviewed, not worked through.

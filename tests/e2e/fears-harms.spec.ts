@@ -104,7 +104,10 @@ test('fear flow follows column order', async ({ page }) => {
   expect(doc.fears.map((f) => [f.trust, f.selfRelianceWorked, f.prayerDone])).toEqual([['self', 'no', false], ['self', 'no', false]])
 })
 
-test('the trust choice reads from the chosen word, and works from the keyboard', async ({ page }) => {
+test('the trust choice reads from the chosen word, and works from the keyboard', async ({ page, browserName }) => {
+  // ChoiceStep uses native radio inputs, and Safari's own setting decides whether Tab reaches them. The
+  // owner checks radios in real Safari on macOS and iOS (docs/launch-checklist.md).
+  test.skip(browserName === 'webkit', "Safari doesn't Tab to radio buttons unless its keyboard setting is on")
   await startWithBrowserSave(page, {
     settings: { preset: 'alcohol', godWord: { kind: 'custom', custom: 'Creator' } },
     fears: [fear()],

@@ -158,7 +158,8 @@ test('settings change preset and word without losing entries', async ({ page }) 
 test('support page offers a sponsor or trusted person, 988, and local services', async ({ page }) => {
   await page.goto('/#/support')
   const main = page.locator('main')
-  await expect(main.getByRole('link', { name: /sponsor or someone you trust/ })).toHaveAttribute('href', /^sms:/)
+  await expect(main).toContainText('Message or call your sponsor or someone you trust')
+  await expect(main.locator('a[href="sms:"]')).toHaveCount(0) // a link with no number is not offered
   await expect(main.getByRole('link', { name: /988/ }).first()).toHaveAttribute('href', 'tel:988')
   await expect(main.getByRole('link', { name: /local crisis services/ })).toHaveAttribute('href', /^https:\/\//)
   await expect(main.getByRole('link', { name: /local crisis services/ })).toHaveAttribute('target', '_blank')

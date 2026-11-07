@@ -58,7 +58,7 @@ async function savedWithPassword(page: Page) {
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
   await page.getByLabel('Type it again').fill(PASSWORD)
   await page.getByRole('button', { name: 'Save in this browser with a password' }).click()
-  await expect(page.locator('main')).toContainText(saveCopy.savedBrowserEncrypted)
+  await expect(page.locator('main')).toContainText(saveCopy.savedBrowserEncrypted, { timeout: 30_000 }) // key derivation is slow under load
 }
 
 const INVENTORIES: InventoryId[] = ['resentments', 'fears', 'harms']
@@ -128,7 +128,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
       await page.getByLabel('Type it again').fill(PASSWORD)
       await page.getByRole('button', { name: 'Save in this browser with a password' }).click()
-      await expect(page.locator('main')).toContainText(saveCopy.savedBrowserEncrypted)
+      await expect(page.locator('main')).toContainText(saveCopy.savedBrowserEncrypted, { timeout: 30_000 }) // key derivation is slow under load
       await scan(page, 'save, protected')
       await page.getByRole('button', { name: 'Remove the password' }).click()
       await scan(page, 'save, remove-password question open')

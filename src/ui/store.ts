@@ -1,3 +1,4 @@
+import { isOfflineFile } from './offline';
 import { useEffect, useState } from 'preact/hooks';
 import type { Envelope, SessionKey } from '../core/crypto';
 import type { InventoryDoc } from '../core/doc';
@@ -48,6 +49,9 @@ const PROBLEMS: Record<string, string> = {
 const GENERIC_PROBLEM = 'The saved inventory in this browser could not be read.';
 
 function readStorage(): Storage | null {
+  // The offline file never touches browser storage: other local files can share it in some browsers,
+  // so nothing is read from it and nothing is written to it.
+  if (isOfflineFile()) return null;
   try {
     const storage = window.localStorage;
     storage.getItem('step4-inventory'); // blocked storage can throw on read, not just on access
@@ -181,6 +185,16 @@ export async function setSaveMode(
     mode,
     requiredSession: mode.kind === 'browser-encrypted' ? mode.session : mode.kind === 'browser-plain' ? null : state.requiredSession,
   });
+}
+
+/**
+ * Puts the step actually shown into the address and the route, without a hash change. A hash change would
+ * flush what is being typed and reset the screen, so text typed just after a section opens would be split up.
+ */
+function settle(route: Route): void {
+  const hash = routeHash(route);
+  if (window.location.hash !== hash) window.history.replaceState(window.history.state, '', hash);
+  set({ route });
 }
 
 function go(route: Route): void {
@@ -389,7 +403,7 @@ export function startInventory(doc: InventoryDoc): void {
   go({ name: 'home' });
 }
 
-export function useApp(): { state: AppState; update: typeof update; go: typeof go; saver: Saver; lock: typeof lock; setSaveMode: typeof setSaveMode } {
+export function useApp(): { state: AppState; update: typeof update; go: typeof go; settle: typeof settle; saver: Saver; lock: typeof lock; setSaveMode: typeof setSaveMode } {
   if (!state) start();
   const [, tick] = useState(0);
   useEffect(() => {
@@ -398,5 +412,5 @@ export function useApp(): { state: AppState; update: typeof update; go: typeof g
     l(); // the state may have changed between the first render and now
     return () => void listeners.delete(l);
   }, []);
-  return { state, update, go, saver, lock, setSaveMode };
+  return { state, update, go, settle, saver, lock, setSaveMode };
 }
