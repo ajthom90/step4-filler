@@ -1189,3 +1189,66 @@ test('locked screen: storage blocked from the start is not reported as nothing s
   await expect(main(page)).not.toContainText(saveCopy.lockedNothingSaved)
   await expect(forgotHeading(page)).toHaveCount(0)
 })
+
+/** Puts a save this site cannot read into browser storage, and loads the page over it. */
+async function damagedSave(page: Page, value = '{not json') {
+  await page.goto('/')
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, value])
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.problemHeading)
+}
+
+test('a save that cannot be read offers opening a file and erasing, and changes nothing by itself', async ({ page }) => {
+  await damagedSave(page)
+  await expect(page.getByRole('alert')).toContainText(saveCopy.loadProblems['not-inventory'])
+  await expect(main(page)).toContainText(saveCopy.problemText)
+  await expect(page.getByLabel(saveCopy.labels.openFile)).toBeVisible()
+  await expect(page.getByRole('button', { name: saveCopy.labels.eraseButton })).toBeVisible()
+  expect(await stored(page)).toBe('{not json')
+
+  // Erasing asks first, and keeping it changes nothing.
+  await page.getByRole('button', { name: saveCopy.labels.eraseButton }).click()
+  await page.getByRole('alertdialog', { name: saveCopy.eraseHeading }).getByRole('button', { name: saveCopy.eraseKeep }).click()
+  expect(await stored(page)).toBe('{not json')
+  await page.getByRole('button', { name: saveCopy.labels.eraseButton }).click()
+  await page.getByRole('alertdialog', { name: saveCopy.eraseHeading }).getByRole('button', { name: saveCopy.eraseYes }).click()
+  await expect(page.getByRole('radio', { name: 'Food', exact: true })).toBeVisible() // the first-visit screen
+  expect(await stored(page)).toBeNull()
+})
+
+test('a file opened over a save that cannot be read asks before the first browser save replaces it', async ({ page }) => {
+  await damagedSave(page)
+  const doc = emptyDoc('food', { kind: 'god', custom: '' })
+  doc.resentments.push({
+    id: 'e'.repeat(32), name: SENTINEL, causes: [], prayerDone: false, selfish: '', dishonest: '', selfSeeking: '', frightened: '',
+  })
+  await openFile(page, { name: 'mine.json', buffer: Buffer.from(JSON.stringify(doc)) })
+  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+  expect(await stored(page)).toBe('{not json')
+
+  await goTo(page, '#/save')
+  const button = page.getByRole('button', { name: 'Save in this browser without a password' })
+  await button.click()
+  const ask = page.getByRole('alertdialog', { name: saveCopy.replaceDamagedHeading })
+  await expect(ask).toContainText(saveCopy.replaceDamagedText)
+  await page.waitForTimeout(1200)
+  expect(await stored(page)).toBe('{not json')
+  await ask.getByRole('button', { name: saveCopy.replaceDamagedKeep }).click()
+  await expect(ask).toHaveCount(0)
+  await expect(button).toBeFocused()
+  expect(await stored(page)).toBe('{not json')
+
+  // The password path asks too.
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Type it again').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Save in this browser with a password' }).click()
+  await page.getByRole('alertdialog', { name: saveCopy.replaceDamagedHeading }).getByRole('button', { name: saveCopy.replaceDamagedKeep }).click()
+  expect(await stored(page)).toBe('{not json')
+
+  await button.click()
+  await page.getByRole('alertdialog', { name: saveCopy.replaceDamagedHeading }).getByRole('button', { name: saveCopy.replaceDamagedYes }).click()
+  await expect(main(page)).toContainText(saveCopy.savedBrowserPlain)
+  expect(await stored(page)).toContain(SENTINEL)
+  // Once replaced, later saves do not ask again.
+  await expect(page.getByRole('alertdialog', { name: saveCopy.replaceDamagedHeading })).toHaveCount(0)
+})

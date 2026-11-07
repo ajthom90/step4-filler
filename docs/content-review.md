@@ -219,6 +219,7 @@ How it behaves, for context:
 - A file opened but not saved in this browser leaves a message on screen until it is dismissed or a later save works.
 - A tab that is behind another tab's newer save never replaces a password-protected save with readable text; it offers reload and a download only. This is checked again at the moment of saving, and any newer save that is password-protected, from a newer version, or unreadable is left alone.
 - Stopping browser saving deletes the saved copy, so a readable copy is never left behind unknowingly.
+- If the save in this browser can't be read when the site opens (`problemHeading`), it is left untouched, and the screen offers opening a downloaded file and erasing the saved copy (erasing asks first). If a file is opened instead, the first save in this browser asks before it replaces the copy that couldn't be read (`replaceDamagedHeading`).
 
 | Name in copy.ts | Wording |
 | --- | --- |
@@ -323,6 +324,17 @@ How it behaves, for context:
 | eraseYes | Yes, erase everything |
 | eraseKeep | Keep my inventory |
 | eraseFailed | Couldn't delete the saved copy. Close other tabs of this site and try again, or clear this site's data in your browser's settings. |
+| problemHeading | Your saved inventory can't be opened |
+| problemText | Nothing has been changed or erased. If you have a downloaded file, you can open it below. You can also erase the saved copy and start over. If you aren't sure, close other copies of this site and reload the page, or ask for help before doing anything else. |
+| loadProblems.too-large | The saved inventory in this browser is larger than this site can open. |
+| loadProblems.newer-version | The saved inventory in this browser was made by a newer version of this site. |
+| loadProblems.not-inventory | The saved data in this browser isn't an inventory this site can read. |
+| loadProblems.corrupt | The saved inventory in this browser is damaged and could not be read. |
+| loadProblems.other | The saved inventory in this browser could not be read. |
+| replaceDamagedHeading | Replace the saved copy that couldn't be read? |
+| replaceDamagedText | This browser still holds a saved copy that this site couldn't read. Saving here replaces it for good. Only do this if you don't need that copy. |
+| replaceDamagedYes | Replace it and save |
+| replaceDamagedKeep | Keep it for now |
 | status.none | Not saved. Your work is only on this page. |
 | status.matchesFile | Matches your file. No changes since. |
 | status.changedSinceDownload | Unsaved changes since your file |

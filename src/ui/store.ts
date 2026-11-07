@@ -40,13 +40,7 @@ export interface AppState {
   notice: string | null;
 }
 
-const PROBLEMS: Record<string, string> = {
-  'too-large': 'The saved inventory in this browser is larger than this site can open.',
-  'newer-version': 'The saved inventory in this browser was made by a newer version of this site.',
-  'not-inventory': "The saved data in this browser isn't an inventory this site can read.",
-  corrupt: 'The saved inventory in this browser is damaged and could not be read.',
-};
-const GENERIC_PROBLEM = 'The saved inventory in this browser could not be read.';
+const PROBLEMS: Record<string, string> = saveCopy.loadProblems;
 
 /**
  * The only place the store touches `window.localStorage`. The offline file never uses browser storage: other
@@ -132,7 +126,7 @@ function start(): void {
       }
     } catch (err) {
       const code = err instanceof FileError ? err.code : '';
-      state = { ...state, loadProblem: PROBLEMS[code] ?? GENERIC_PROBLEM };
+      state = { ...state, loadProblem: PROBLEMS[code] ?? saveCopy.loadProblems.other };
     }
   }
   window.addEventListener('hashchange', () => {
@@ -250,6 +244,27 @@ export function storedSaveIsReplaceableByReadable(): boolean {
     return raw === null || parseSaved(raw).kind === 'plain';
   } catch {
     return false; // fail closed
+  }
+}
+
+/**
+ * Whether browser storage holds something this site can't read (damaged, too large, or from a newer version).
+ * A first save in this browser would replace it, so the person is asked first. False when nothing is stored,
+ * or when storage can't be used at all.
+ */
+export function storedSaveIsUnreadable(): boolean {
+  let raw: string | null;
+  try {
+    raw = browserStorage()?.getItem(STORAGE_KEY) ?? null;
+  } catch {
+    return false;
+  }
+  if (raw === null) return false;
+  try {
+    parseSaved(raw);
+    return false;
+  } catch {
+    return true;
   }
 }
 

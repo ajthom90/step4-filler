@@ -8,7 +8,7 @@ import { Print } from './screens/Print';
 import { Home } from './screens/Home';
 import { Privacy } from './screens/Privacy';
 import { StepRunner } from './screens/StepRunner';
-import { Save } from './screens/Save';
+import { EraseEverything, OpenFile, Save } from './screens/Save';
 import { Settings } from './screens/Settings';
 import { Support } from './screens/Support';
 import { Unlock } from './screens/Unlock';
@@ -18,12 +18,15 @@ import { SavePrompt } from './SavePrompt';
 import { LockButton, SaveStatus } from './SaveStatus';
 import { dismissNotice, useApp } from './store';
 
+/** The save in this browser can't be read. It stays untouched unless the person erases it, which asks first. */
 function Problem({ message }: { message: string }) {
   return (
     <>
-      <h1 tabIndex={-1}>Your saved inventory can't be opened</h1>
+      <h1 tabIndex={-1}>{saveCopy.problemHeading}</h1>
       <p role="alert">{message}</p>
-      <p>Nothing has been changed or erased. Close other copies of this site and reload the page, or ask for help before doing anything else.</p>
+      <p>{saveCopy.problemText}</p>
+      <OpenFile />
+      <EraseEverything />
     </>
   );
 }

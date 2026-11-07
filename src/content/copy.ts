@@ -172,6 +172,23 @@ export const saveCopy = {
   eraseYes: 'Yes, erase everything',
   eraseKeep: 'Keep my inventory',
   eraseFailed: "Couldn't delete the saved copy. Close other tabs of this site and try again, or clear this site's data in your browser's settings.",
+  /** When the save in this browser can't be read on opening the site. It is left untouched unless erased. */
+  problemHeading: "Your saved inventory can't be opened",
+  problemText:
+    'Nothing has been changed or erased. If you have a downloaded file, you can open it below. You can also erase the saved copy and start over. ' +
+    "If you aren't sure, close other copies of this site and reload the page, or ask for help before doing anything else.",
+  loadProblems: {
+    'too-large': 'The saved inventory in this browser is larger than this site can open.',
+    'newer-version': 'The saved inventory in this browser was made by a newer version of this site.',
+    'not-inventory': "The saved data in this browser isn't an inventory this site can read.",
+    corrupt: 'The saved inventory in this browser is damaged and could not be read.',
+    other: 'The saved inventory in this browser could not be read.',
+  },
+  replaceDamagedHeading: "Replace the saved copy that couldn't be read?",
+  replaceDamagedText:
+    "This browser still holds a saved copy that this site couldn't read. Saving here replaces it for good. Only do this if you don't need that copy.",
+  replaceDamagedYes: 'Replace it and save',
+  replaceDamagedKeep: 'Keep it for now',
   /** The print screen, and the headings the printed forms take from the handout. */
   print: {
     title: 'Print your inventory',

@@ -7,7 +7,9 @@ import { Confirm, useFocusReturn } from '../Confirm';
 import { isOfflineFile } from '../offline';
 import { MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
 import { FileError } from '../../core/validate';
-import { downloadBackup, eraseBrowserData, isStale, openDocument, ReplaceRefused, storedSaveIsReplaceableByReadable, useApp } from '../store';
+import {
+  downloadBackup, eraseBrowserData, isStale, openDocument, ReplaceRefused, storedSaveIsReplaceableByReadable, storedSaveIsUnreadable, useApp,
+} from '../store';
 
 const MIN_PASSWORD = 8;
 
@@ -209,7 +211,7 @@ export function Save() {
   const [newAgain, setNewAgain] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>(null);
-  const [asking, setAsking] = useState<'remove' | 'stop' | 'replace' | 'plain' | null>(null);
+  const [asking, setAsking] = useState<'remove' | 'stop' | 'replace' | 'plain' | 'damaged-password' | 'damaged-plain' | null>(null);
   // Set by confirming "replace" while no mode is active; it covers exactly one save attempt.
   const [armed, setArmed] = useState(false);
   const focus = useFocusReturn();
@@ -231,13 +233,17 @@ export function Save() {
   };
   const refuse = (text: string) => setMessage({ kind: 'error', text });
 
-  const saveInBrowser = (withPassword: boolean, removeProtection = false) => {
+  const saveInBrowser = (withPassword: boolean, removeProtection = false, replaceDamaged = false) => {
     // An inventory that was under a password is saved as readable text only after this explicit question.
     if (!withPassword && state.requiredSession && !removeProtection) return setAsking('plain');
     setAsking(null);
     if (withPassword) {
       const problem = passwordProblem(password, again);
       if (problem) return refuse(problem);
+    }
+    // A copy this site couldn't read is still stored. The first save here replaces it, so that is asked first.
+    if (mode.kind === 'none' && !replaceDamaged && storedSaveIsUnreadable()) {
+      return setAsking(withPassword ? 'damaged-password' : 'damaged-plain');
     }
     const first = mode.kind === 'none';
     void run(async () => {
@@ -315,6 +321,21 @@ export function Save() {
       <p class="note">{where}</p>
       {!browserOk && <p class="notice">{isOfflineFile() ? offlineCopy.storageUnavailable : saveCopy.rightNow.unavailable}</p>}
       {message?.kind === 'error' && <p class="notice alert" role="alert">{message.text}</p>}
+      {(asking === 'damaged-password' || asking === 'damaged-plain') && (
+        <Confirm
+          title={saveCopy.replaceDamagedHeading}
+          yes={saveCopy.replaceDamagedYes}
+          no={saveCopy.replaceDamagedKeep}
+          // A readable save gets here only after the remove-protection question, when that applies.
+          onYes={() => saveInBrowser(asking === 'damaged-password', true, true)}
+          onNo={() => {
+            focus.restore(asking === 'damaged-password' ? 'password' : 'plain');
+            setAsking(null);
+          }}
+        >
+          {saveCopy.replaceDamagedText}
+        </Confirm>
+      )}
       <div aria-live="polite">{message?.kind === 'ok' && <p class="notice">{message.text}</p>}</div>
 
       {stale && !armed && (
@@ -381,7 +402,7 @@ export function Save() {
             <p>{PASSWORD_WARNING}</p>
             <p class="actions">
               {browserOk && (
-                <button type="button" class="primary" disabled={busy} onClick={() => saveInBrowser(true)}>
+                <button type="button" class="primary" ref={focus.trigger('password')} disabled={busy} onClick={() => saveInBrowser(true)}>
                   {saveCopy.labels.saveBrowserPassword}
                 </button>
               )}
