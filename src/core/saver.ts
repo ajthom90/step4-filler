@@ -10,6 +10,8 @@ export type SaveMode =
   | { kind: 'browser-plain' }
   | { kind: 'browser-encrypted'; session: SessionKey };
 export type SaveStatus = 'unsaved' | 'saving' | 'saved' | 'failed' | 'stale';
+/** Why the save is stale: another tab saved a newer version, or removed the save altogether. */
+export type StaleReason = 'newer' | 'removed';
 
 /** The site cannot reopen anything larger, so it must never write it. */
 function checkSize(text: string): void {
@@ -32,6 +34,7 @@ export class Saver {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private pending: InventoryDoc | null = null;
   private stale = false;
+  private reason: StaleReason | null = null;
   /** Bumped by anything that must abandon writes already under way. */
   private epoch = 0;
   private modeSeq = 0;
@@ -57,11 +60,12 @@ export class Saver {
     // key is null when another tab clears all storage.
     if (key !== null && key !== STORAGE_KEY) return;
     if (this.known === undefined || newValue === this.known) return;
-    this.markStale();
+    this.markStale(newValue === null ? 'removed' : 'newer');
   };
 
-  private markStale(): void {
+  private markStale(reason: StaleReason): void {
     this.stale = true;
+    this.reason = reason;
     this.epoch++;
     this.cancelTimer();
     this.pending = null;
@@ -89,9 +93,12 @@ export class Saver {
     const text = await render(doc, mode.kind === 'browser-encrypted' ? mode.session : undefined);
     if (epoch !== this.epoch) return false; // locked, erased, or gone stale meanwhile
     // The storage event can be missed (frozen or restored tabs), so look before writing.
-    if (!overwrite && this.known !== undefined && this.storage.getItem(STORAGE_KEY) !== this.known) {
-      this.markStale();
-      return false;
+    if (!overwrite && this.known !== undefined) {
+      const now = this.storage.getItem(STORAGE_KEY);
+      if (now !== this.known) {
+        this.markStale(now === null ? 'removed' : 'newer');
+        return false;
+      }
     }
     this.storage.setItem(STORAGE_KEY, text);
     this.known = text;
@@ -103,6 +110,11 @@ export class Saver {
     return this.stale;
   }
 
+  /** Why the save is stale, or null when it is not. */
+  get staleReason(): StaleReason | null {
+    return this.stale ? this.reason : null;
+  }
+
   /**
    * Enters a browser mode without writing, for a save that was just read (loadRaw) and opened:
    * the stored bytes stay exactly as they are, so another tab holding the same save is not made stale.
@@ -111,7 +123,10 @@ export class Saver {
   resume(mode: SaveMode): void {
     if (mode.kind === 'none') throw new Error('Nothing to resume');
     if (!this.storage || this.known === undefined) throw new Error('Nothing was loaded to resume');
-    if (!this.stale && this.storage.getItem(STORAGE_KEY) !== this.known) this.markStale();
+    if (!this.stale) {
+      const now = this.storage.getItem(STORAGE_KEY);
+      if (now !== this.known) this.markStale(now === null ? 'removed' : 'newer');
+    }
     if (this.stale) this.abandoned();
     this.mode = mode;
     this.onStatus('saved');
@@ -149,7 +164,8 @@ export class Saver {
           throw err;
         }
         if (seq !== this.modeSeq) return;
-        if (!wrote) return this.abandoned();
+        // Lock, erase or another tab may have come in after the write: the mode stays as they left it.
+        if (!wrote || epoch !== this.epoch) return this.abandoned();
         this.mode = mode;
         this.stale = false;
         this.onStatus(this.pending === null ? 'saved' : 'unsaved');
@@ -198,8 +214,11 @@ export class Saver {
           if (this.pending === null) this.onStatus('saved');
         }
       } catch {
-        // Retried by the next edit; the work stays in memory in the caller.
-        if (epoch === this.epoch) this.onStatus('failed');
+        // Retried by the next edit or flush; the work stays in memory in the caller.
+        if (epoch === this.epoch) {
+          if (this.pending === null) this.pending = doc;
+          this.onStatus('failed');
+        }
       }
     });
   }

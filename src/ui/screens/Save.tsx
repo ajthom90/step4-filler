@@ -329,7 +329,7 @@ export function Save() {
       {stale && !armed && (
         <section class="notice alert" aria-labelledby="stale-title">
           <h2 id="stale-title">{saveCopy.staleReplaceHeading}</h2>
-          <p>{saveCopy.stale}</p>
+          <p>{saver.staleReason === 'removed' ? saveCopy.staleBannerRemoved : saveCopy.stale}</p>
           {!canReplace && <p>{saveCopy.staleNoReplace}</p>}
           <p class="actions">
             <button type="button" class="primary" onClick={() => window.location.reload()}>{saveCopy.staleReload}</button>

@@ -489,3 +489,125 @@ describe('Saver.resume', () => {
     expect(s.isStale).toBe(true);
   });
 });
+
+describe('Saver stale reason', () => {
+  it('says a newer save when another tab wrote, and removed when it erased', async () => {
+    const s = make();
+    await s.setMode({ kind: 'browser-plain' }, docWith('mine'));
+    expect(s.staleReason).toBeNull();
+    otherTabWrote('{"theirs":true}');
+    expect(s.staleReason).toBe('newer');
+
+    storage.clear();
+    const t = make();
+    await t.setMode({ kind: 'browser-plain' }, docWith('mine'));
+    otherTabWrote(null);
+    expect(t.isStale).toBe(true);
+    expect(t.staleReason).toBe('removed');
+  });
+
+  it('says removed when another tab cleared all storage', async () => {
+    const s = make();
+    await s.setMode({ kind: 'browser-plain' }, docWith('mine'));
+    win.dispatchEvent(Object.assign(new Event('storage'), { key: null, newValue: null }));
+    expect(s.staleReason).toBe('removed');
+  });
+
+  it('says removed when the save is found gone before a write, with no event', async () => {
+    const s = make();
+    await s.setMode({ kind: 'browser-plain' }, docWith('mine'));
+    storage.data.delete(STORAGE_KEY);
+    s.edited(docWith('later'));
+    await vi.advanceTimersByTimeAsync(800);
+    expect(s.isStale).toBe(true);
+    expect(s.staleReason).toBe('removed');
+    expect(storage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it('says newer when the save changed before a write, with no event', async () => {
+    const s = make();
+    await s.setMode({ kind: 'browser-plain' }, docWith('mine'));
+    storage.data.set(STORAGE_KEY, 'theirs');
+    s.edited(docWith('later'));
+    await vi.advanceTimersByTimeAsync(800);
+    expect(s.staleReason).toBe('newer');
+  });
+
+  it('says removed when resuming a save that is gone', () => {
+    storage.data.set(STORAGE_KEY, 'one');
+    const s = make();
+    s.loadRaw();
+    storage.data.delete(STORAGE_KEY);
+    expect(() => s.resume({ kind: 'browser-plain' })).toThrow();
+    expect(s.staleReason).toBe('removed');
+  });
+
+  it('forgets the reason once a deliberate save replaces it', async () => {
+    const s = make();
+    await s.setMode({ kind: 'browser-plain' }, docWith('mine'));
+    otherTabWrote(null);
+    storage.data.delete(STORAGE_KEY);
+    await s.setMode({ kind: 'browser-plain' }, docWith('again'), { overwriteStale: true });
+    expect(s.isStale).toBe(false);
+    expect(s.staleReason).toBeNull();
+  });
+});
+
+describe('Saver retries and races', () => {
+  it('a failed autosave is retried by flush, with no newer edit', async () => {
+    const s = make();
+    await s.setMode({ kind: 'browser-plain' }, docWith('old'));
+    storage.failWrites = quota();
+    s.edited(docWith('new'));
+    await vi.advanceTimersByTimeAsync(800);
+    expect(statuses.at(-1)).toBe('failed');
+    storage.failWrites = null;
+    await s.flush();
+    expect(storage.getItem(STORAGE_KEY)).toContain('new');
+    expect(statuses.at(-1)).toBe('saved');
+  });
+
+  it('a failed autosave does not hold back a newer edit made meanwhile', async () => {
+    const s = make();
+    await s.setMode({ kind: 'browser-plain' }, docWith('old'));
+    const original = storage.setItem.bind(storage);
+    storage.setItem = (k, v) => {
+      s.edited(docWith('newer')); // arrives while the failing write is under way
+      throw quota();
+    };
+    s.edited(docWith('new'));
+    await vi.advanceTimersByTimeAsync(800);
+    storage.setItem = original;
+    await s.flush();
+    expect(storage.getItem(STORAGE_KEY)).toContain('newer');
+  });
+
+  it('a failed autosave is not retried after Lock', async () => {
+    const s = make();
+    await s.setMode({ kind: 'browser-plain' }, docWith('old'));
+    const before = storage.getItem(STORAGE_KEY);
+    storage.failWrites = quota();
+    s.edited(docWith('new'));
+    await vi.advanceTimersByTimeAsync(800);
+    s.lock();
+    storage.failWrites = null;
+    await s.flush();
+    expect(storage.getItem(STORAGE_KEY)).toBe(before);
+  });
+
+  it('a Lock that lands as a mode change finishes writing leaves saving stopped', async () => {
+    const s = make();
+    const original = storage.setItem.bind(storage);
+    let locked = false;
+    storage.setItem = (k, v) => {
+      original(k, v);
+      if (!locked) { locked = true; s.lock(); } // Lock arriving once the write is done, before setMode resumes
+    };
+    await s.setMode({ kind: 'browser-plain' }, docWith('first')).catch(() => undefined);
+    const after = storage.getItem(STORAGE_KEY);
+    s.edited(docWith('after lock'));
+    await vi.advanceTimersByTimeAsync(5000);
+    await s.flush();
+    expect(storage.getItem(STORAGE_KEY)).toBe(after);
+  });
+});

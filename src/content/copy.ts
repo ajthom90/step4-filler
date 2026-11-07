@@ -91,6 +91,8 @@ export const saveCopy = {
   staleBanner:
     'Another tab saved a newer version of this inventory. Reload this page to see it. This page will not overwrite it. ' +
     'Changes made on this page since then are not saved.',
+  staleBannerRemoved:
+    'Another tab erased the saved copy. What is open here is the only copy; download a file before reloading.',
   staleReload: 'Reload this page',
   staleReplace: 'Replace the other tab’s save with what is open here',
   staleReplaceHeading: 'Replace the newer save?',

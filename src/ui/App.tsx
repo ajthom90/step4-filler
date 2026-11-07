@@ -76,7 +76,7 @@ export function App() {
         {state.doc && <SaveStatus />}
       </header>
       {saver.isStale && (
-        <p class="notice alert" role="alert">{saveCopy.staleBanner}</p>
+        <p class="notice alert" role="alert">{saver.staleReason === 'removed' ? saveCopy.staleBannerRemoved : saveCopy.staleBanner}</p>
       )}
       {state.notice && (
         <div class="notice alert" role="alert">

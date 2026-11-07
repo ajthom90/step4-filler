@@ -503,6 +503,24 @@ test('a second tab sees the stale warning and cannot silently overwrite', async 
   await second.close()
 })
 
+test('a tab whose save another tab erased says that what is open is the only copy', async ({ page, context }) => {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+
+  const second = await context.newPage()
+  await second.goto('/#/save')
+  await second.getByRole('button', { name: 'Stop saving in this browser' }).click()
+  await second.getByRole('button', { name: 'Yes, delete the saved copy' }).click()
+  await expect.poll(() => stored(second)).toBeNull()
+
+  await expect(page.getByRole('alert').filter({ hasText: saveCopy.staleBannerRemoved })).toBeVisible()
+  await expect(page.getByText(saveCopy.staleBanner)).toHaveCount(0)
+  await goTo(page, '#/save')
+  await expect(main(page)).toContainText(saveCopy.staleBannerRemoved)
+  await expect(main(page)).not.toContainText(saveCopy.stale)
+  await second.close()
+})
+
 test('the save and unlock screens fit at 320px with no horizontal scroll', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 })
   await beginWithSentinel(page)

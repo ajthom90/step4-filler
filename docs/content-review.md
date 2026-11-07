@@ -210,6 +210,7 @@ The two required warnings are unchanged and sit next to every password or no-pas
 How it behaves, for context:
 
 - Nothing says "saved" before the save has happened, and a failed save says so in the page header and on the save screen.
+- If another tab erased the save instead (Stop saving, Erase everything, or clearing site data), the page says that what is open is the only copy (`staleBannerRemoved`, in the banner and on the save screen) instead of offering the newer version.
 - If another tab changed the save, this page never overwrites it on its own. Reloading is the default; replacing it is a separate, confirmed step that covers one save only.
 - Opening a password-protected file over a readable browser save switches the browser save to that file's password, so its contents are never written as readable text.
 - Opening a password-protected file stops browser saving first and resumes it only after the password-protected write succeeds. If that fails, nothing is saved in the browser, the old browser copy is untouched, and saving it as readable text needs an explicit choice that shows the warning.
@@ -260,6 +261,7 @@ How it behaves, for context:
 | stale | Another tab changed the save in this browser. Reload this page to see the newer version. Anything you changed on this page since will be lost, so download a file first if you want to keep it. |
 | staleNoReplace | The newer save in this browser is protected with a password, and this page would save readable text, so replacing it is not offered. Reload to see it, or download a file to keep what is open here. |
 | staleBanner | Another tab saved a newer version of this inventory. Reload this page to see it. This page will not overwrite it. Changes made on this page since then are not saved. |
+| staleBannerRemoved | Another tab erased the saved copy. What is open here is the only copy; download a file before reloading. |
 | staleReload | Reload this page |
 | staleReplace | Replace the other tab’s save with what is open here |
 | staleReplaceHeading | Replace the newer save? |
