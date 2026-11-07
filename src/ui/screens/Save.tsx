@@ -1,9 +1,10 @@
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
-import { PASSWORD_WARNING, PLAIN_WARNING, saveCopy } from '../../content/copy';
+import { offlineCopy, PASSWORD_WARNING, PLAIN_WARNING, saveCopy } from '../../content/copy';
 import type { SaveMode } from '../../core/saver';
 import { createKey, decrypt, type Envelope, type SessionKey } from '../../core/crypto';
 import type { InventoryDoc } from '../../core/doc';
+import { isOfflineFile } from '../offline';
 import { MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
 import { FileError } from '../../core/validate';
 import { downloadBackup, eraseBrowserData, isStale, openDocument, ReplaceRefused, storedSaveIsReplaceableByReadable, useApp } from '../store';
@@ -321,7 +322,7 @@ export function Save() {
       <h1 tabIndex={-1}>{saveCopy.title}</h1>
       <p>{saveCopy.intro}</p>
       <p class="note">{where}</p>
-      {!browserOk && <p class="notice">{saveCopy.rightNow.unavailable}</p>}
+      {!browserOk && <p class="notice">{isOfflineFile() ? offlineCopy.storageUnavailable : saveCopy.rightNow.unavailable}</p>}
       {message?.kind === 'error' && <p class="notice alert" role="alert">{message.text}</p>}
       <div aria-live="polite">{message?.kind === 'ok' && <p class="notice">{message.text}</p>}</div>
 
@@ -388,9 +389,11 @@ export function Save() {
             />
             <p>{PASSWORD_WARNING}</p>
             <p class="actions">
-              <button type="button" class="primary" disabled={busy || !browserOk} onClick={() => saveInBrowser(true)}>
-                {saveCopy.labels.saveBrowserPassword}
-              </button>
+              {browserOk && (
+                <button type="button" class="primary" disabled={busy} onClick={() => saveInBrowser(true)}>
+                  {saveCopy.labels.saveBrowserPassword}
+                </button>
+              )}
               <button type="button" disabled={busy} onClick={() => downloadFile(true)}>{saveCopy.labels.downloadPassword}</button>
             </p>
           </section>
@@ -409,7 +412,7 @@ export function Save() {
               </Confirm>
             )}
             <p class="actions">
-              <button type="button" disabled={busy || !browserOk} onClick={() => saveInBrowser(false)}>{saveCopy.labels.saveBrowserPlain}</button>
+              {browserOk && <button type="button" disabled={busy} onClick={() => saveInBrowser(false)}>{saveCopy.labels.saveBrowserPlain}</button>}
               <button type="button" disabled={busy} onClick={() => downloadFile(false)}>{saveCopy.labels.downloadPlain}</button>
             </p>
           </section>

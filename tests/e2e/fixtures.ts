@@ -52,6 +52,13 @@ export const test = base.extend<{ guard: Guard } & Options>({
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
           loaded = false
         }
+        if (url.protocol === 'file:') {
+          // The offline file opened from disk. Only the page itself may load; any file it asked for is a leak.
+          if (!(request.isNavigationRequest() && request.frame() === page.mainFrame())) {
+            guard.leaks.push(`file subresource: ${request.url()}`)
+          }
+          return
+        }
         if (url.origin !== origin) {
           guard.leaks.push(`off-origin: ${request.url()}`)
           return

@@ -8,8 +8,8 @@
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",
-    "build": "vite build",
-    "test:e2e": "vite build && playwright test",
+    "build": "vite build && node scripts/build-offline.mjs",
+    "test:e2e": "npm run build && playwright test",
     "typecheck": "tsc --noEmit"
   },
   "repository": {

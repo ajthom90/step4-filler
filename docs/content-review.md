@@ -331,6 +331,20 @@ How it behaves, for context:
 | status.stale | Changed in another tab |
 | status.encrypted | Saved on this device, with a password |
 
+### Offline version
+
+Where the wording lives: `src/content/copy.ts` (`offlineCopy`). The offline file is described only as a computer option. Nothing says it works on a phone; that waits for real-device testing. The file name is `step4-inventory-offline.html` and holds no entry data. The Privacy screen shows the first three rows on the site; inside the offline file it shows `usingOffline` instead of a link.
+
+| Name in copy.ts | Wording |
+| --- | --- |
+| heading | Offline version |
+| computerOption | On a computer, you can download this site as a single file that works without a connection. Open it from your Downloads folder in a browser. It makes no requests, and it keeps your work only where you choose: in a file you download. We haven't tested it on phones. |
+| linkLabel | Download the offline version |
+| usingOffline | You are using the offline version. It makes no connection to anything. |
+| storageUnavailable | This offline file can't keep a saved copy in this browser, so saving in this browser isn't available. Download a file to keep your work, and open it here later. |
+
+On the Save screen, when the browser will not let the page store anything, the two "Save in this browser" buttons are now left out instead of shown greyed. On the site the existing `rightNow.unavailable` sentence explains it; in the offline file `storageUnavailable` does.
+
 ### Printing
 
 The print screen is new wording, and the printed forms' headings and titles are the handout's own (the `print.titles` rows). On paper, each form is laid out in the handout's column order, in landscape; the pledge is portrait and is only included if it has been started or is chosen. The disclaimer prints at the foot of every page. Wording the person typed is printed as typed.

@@ -22,6 +22,19 @@ export const SUPPORT_TEXT =
   'In the US, you can call or text 988, the Suicide & Crisis Lifeline, at any hour. ' +
   'Elsewhere, please use your local emergency or crisis services.';
 
+/** The offline file: a single page for a computer. The owner reviews it in docs/content-review.md (section 5c). */
+export const OFFLINE_FILE_NAME = 'step4-inventory-offline.html';
+export const offlineCopy = {
+  heading: 'Offline version',
+  computerOption:
+    "On a computer, you can download this site as a single file that works without a connection. Open it from your Downloads folder in a browser. " +
+    "It makes no requests, and it keeps your work only where you choose: in a file you download. We haven't tested it on phones.",
+  linkLabel: 'Download the offline version',
+  usingOffline: 'You are using the offline version. It makes no connection to anything.',
+  storageUnavailable:
+    "This offline file can't keep a saved copy in this browser, so saving in this browser isn't available. Download a file to keep your work, and open it here later.",
+};
+
 /** Wording for saving, opening, locking and erasing. The owner reviews it in docs/content-review.md (section 5c). */
 export const saveCopy = {
   title: 'Save your progress',
