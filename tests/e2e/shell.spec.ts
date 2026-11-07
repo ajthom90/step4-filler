@@ -52,6 +52,8 @@ test('all five presets are offered, with draft labels and feedback links', async
   if (site.feedbackUrl) {
     await expect(feedback).toHaveCount(2)
     await expect(feedback.first()).toHaveAttribute('href', site.feedbackUrl)
+    await expect(feedback.first()).toHaveAttribute('target', '_blank')
+    await expect(feedback.first()).toHaveAttribute('rel', /noreferrer/)
   } else {
     await expect(feedback).toHaveCount(0)
   }
@@ -159,6 +161,8 @@ test('support page offers a sponsor or trusted person, 988, and local services',
   await expect(main.getByRole('link', { name: /sponsor or someone you trust/ })).toHaveAttribute('href', /^sms:/)
   await expect(main.getByRole('link', { name: /988/ }).first()).toHaveAttribute('href', 'tel:988')
   await expect(main.getByRole('link', { name: /local crisis services/ })).toHaveAttribute('href', /^https:\/\//)
+  await expect(main.getByRole('link', { name: /local crisis services/ })).toHaveAttribute('target', '_blank')
+  await expect(main.getByRole('link', { name: /local crisis services/ })).toHaveAttribute('rel', /noreferrer/)
   await expect(main).toContainText('does not replace a sponsor or professional help')
 })
 

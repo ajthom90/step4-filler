@@ -25,7 +25,7 @@ export function PresetPicker({ value, onChange, name }: { value: PresetId | null
                   {site.feedbackUrl !== '' && (
                     <>
                       {' '}
-                      <a href={site.feedbackUrl} rel="noreferrer noopener">Send feedback</a>
+                      <a href={site.feedbackUrl} target="_blank" rel="noreferrer noopener">Send feedback</a>
                     </>
                   )}
                 </span>
