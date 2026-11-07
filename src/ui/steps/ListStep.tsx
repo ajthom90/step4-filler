@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { addEntry, removeEntry, renameEntry } from '../../core/edit';
+import { Confirm, useFocusReturn } from '../Confirm';
 import { Definitions, HelpSheet } from '../HelpSheet';
 import { listEntries } from '../stepCopy';
 import { commitEdit, registerDraft } from '../store';
@@ -18,6 +19,7 @@ export function ItemList({ label, items, onRename, onRemove, warning }: {
 }) {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const focus = useFocusReturn();
   if (items.length === 0) return null;
   const save = () => {
     if (editing && editing.text.trim() !== '') onRename(editing.id, editing.text.trim());
@@ -47,15 +49,19 @@ export function ItemList({ label, items, onRename, onRemove, warning }: {
             <>
               <span class="item-text">{item.text}</span>
               {confirming === item.id ? (
-                <span class="confirm" role="group" aria-label={`Remove ${item.text}?`}>
-                  <span class="note">{warning}</span>
-                  <button type="button" onClick={() => { setConfirming(null); onRemove(item.id); }}>Remove</button>
-                  <button type="button" onClick={() => setConfirming(null)}>Keep</button>
-                </span>
+                <Confirm
+                  title={`Remove ${item.text}?`}
+                  yes="Remove"
+                  no="Keep"
+                  onYes={() => { setConfirming(null); onRemove(item.id); }}
+                  onNo={() => { setConfirming(null); focus.restore(item.id); }}
+                >
+                  {warning}
+                </Confirm>
               ) : (
                 <span class="row-actions">
                   <button type="button" aria-label={`Edit ${item.text}`} onClick={() => setEditing({ id: item.id, text: item.text })}>Edit</button>
-                  <button type="button" aria-label={`Remove ${item.text}`} onClick={() => setConfirming(item.id)}>Remove</button>
+                  <button type="button" ref={focus.trigger(item.id)} aria-label={`Remove ${item.text}`} onClick={() => setConfirming(item.id)}>Remove</button>
                 </span>
               )}
             </>

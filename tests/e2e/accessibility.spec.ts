@@ -285,3 +285,48 @@ test('tap targets are at least 44px on the bottom buttons', async ({ page }) => 
   }
   expect(small).toEqual([])
 })
+
+test.describe('confirmation questions keep keyboard focus', () => {
+  test('Erase everything: focus moves into the question, and Keep returns it to the button', async ({ page }) => {
+    await startWithBrowserSave(page, FULL)
+    await visit(page, '#/settings')
+    const trigger = page.getByRole('button', { name: saveCopy.labels.eraseButton })
+    await trigger.focus()
+    await page.keyboard.press('Enter')
+    const ask = page.getByRole('alertdialog', { name: saveCopy.eraseHeading })
+    await expect(ask).toBeVisible()
+    await expect(ask).toHaveAccessibleDescription(saveCopy.eraseText)
+    await expect(ask.getByRole('button', { name: saveCopy.eraseYes })).toBeFocused()
+    await ask.getByRole('button', { name: saveCopy.eraseKeep }).focus()
+    await page.keyboard.press('Enter')
+    await expect(ask).toHaveCount(0)
+    await expect(page.getByRole('button', { name: saveCopy.labels.eraseButton })).toBeFocused()
+  })
+
+  test('removing a list item: focus moves into the question, and Keep returns it to the button', async ({ page }) => {
+    await startWithBrowserSave(page, FULL)
+    await visit(page, '#/step/resentments/res%3Alist')
+    await page.getByRole('button', { name: 'Remove Pat' }).focus()
+    await page.keyboard.press('Enter')
+    const ask = page.getByRole('alertdialog', { name: 'Remove Pat?' })
+    await expect(ask).toBeVisible()
+    await expect(ask.getByRole('button', { name: 'Remove', exact: true })).toBeFocused()
+    await ask.getByRole('button', { name: 'Keep' }).focus()
+    await page.keyboard.press('Enter')
+    await expect(ask).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Remove Pat' })).toBeFocused()
+  })
+
+  test('Stop saving: focus moves into the question, and Keep saving returns it to the button', async ({ page }) => {
+    await startWithBrowserSave(page, FULL)
+    await visit(page, '#/save')
+    await page.getByRole('button', { name: saveCopy.stopHeading }).focus()
+    await page.keyboard.press('Enter')
+    const ask = page.getByRole('alertdialog', { name: saveCopy.stopHeading })
+    await expect(ask.getByRole('button', { name: saveCopy.stopYes })).toBeFocused()
+    await ask.getByRole('button', { name: saveCopy.stopKeep }).focus()
+    await page.keyboard.press('Enter')
+    await expect(ask).toHaveCount(0)
+    await expect(page.getByRole('button', { name: saveCopy.stopHeading })).toBeFocused()
+  })
+})

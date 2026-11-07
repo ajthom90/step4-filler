@@ -1,9 +1,9 @@
-import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { offlineCopy, PASSWORD_WARNING, PLAIN_WARNING, saveCopy } from '../../content/copy';
 import type { SaveMode } from '../../core/saver';
 import { createKey, decrypt, type Envelope, type SessionKey } from '../../core/crypto';
 import type { InventoryDoc } from '../../core/doc';
+import { Confirm, useFocusReturn } from '../Confirm';
 import { isOfflineFile } from '../offline';
 import { MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
 import { FileError } from '../../core/validate';
@@ -47,25 +47,11 @@ function PasswordFields({ label, againLabel, password, again, onPassword, onAgai
   );
 }
 
-/** A question with two answers, announced as a group so it is not missed. */
-function Confirm({ title, children, yes, no, onYes, onNo }: {
-  title: string; children: ComponentChildren; yes: string; no: string; onYes: () => void; onNo: () => void;
-}) {
-  return (
-    <div class="notice" role="group" aria-label={title}>
-      <p>{children}</p>
-      <p class="actions">
-        <button type="button" class="primary" onClick={onYes}>{yes}</button>
-        <button type="button" onClick={onNo}>{no}</button>
-      </p>
-    </div>
-  );
-}
-
 /** Deletes the browser save, and with it the inventory on this page. Used where the inventory is not open too. */
 export function EraseEverything() {
   const [asking, setAsking] = useState(false);
   const [failed, setFailed] = useState(false);
+  const focus = useFocusReturn();
   return (
     <section>
       <h2>{saveCopy.eraseHeading}</h2>
@@ -81,12 +67,12 @@ export function EraseEverything() {
               setAsking(false);
             }
           }}
-          onNo={() => setAsking(false)}
+          onNo={() => { setAsking(false); focus.restore(); }}
         >
           {saveCopy.eraseText}
         </Confirm>
       ) : (
-        <button type="button" onClick={() => { setFailed(false); setAsking(true); }}>{saveCopy.labels.eraseButton}</button>
+        <button type="button" ref={focus.trigger()} onClick={() => { setFailed(false); setAsking(true); }}>{saveCopy.labels.eraseButton}</button>
       )}
     </section>
   );
@@ -200,7 +186,7 @@ export function OpenFile() {
           yes={saveCopy.replaceYes}
           no="Cancel"
           onYes={() => void apply(step.opened)}
-          onNo={() => setStep({ name: 'idle' })}
+          onNo={() => { setStep({ name: 'idle' }); input.current?.focus(); }}
         >
           {replaceText}
         </Confirm>
@@ -226,6 +212,11 @@ export function Save() {
   const [asking, setAsking] = useState<'remove' | 'stop' | 'replace' | 'plain' | null>(null);
   // Set by confirming "replace" while no mode is active; it covers exactly one save attempt.
   const [armed, setArmed] = useState(false);
+  const focus = useFocusReturn();
+  const cancel = () => {
+    if (asking) focus.restore(asking);
+    setAsking(null);
+  };
 
   const run = async (task: () => Promise<string>) => {
     setMessage(null);
@@ -333,7 +324,7 @@ export function Save() {
           {!canReplace && <p>{saveCopy.staleNoReplace}</p>}
           <p class="actions">
             <button type="button" class="primary" onClick={() => window.location.reload()}>{saveCopy.staleReload}</button>
-            {canReplace && asking !== 'replace' && <button type="button" onClick={() => setAsking('replace')}>{saveCopy.staleReplace}</button>}
+            {canReplace && asking !== 'replace' && <button type="button" ref={focus.trigger('replace')} onClick={() => setAsking('replace')}>{saveCopy.staleReplace}</button>}
           </p>
           {asking === 'replace' && (
             <Confirm
@@ -341,7 +332,7 @@ export function Save() {
               yes={mode.kind === 'none' && !state.requiredSession ? saveCopy.staleReplaceYesChoose : saveCopy.staleReplaceYes}
               no="Cancel"
               onYes={replaceNewer}
-              onNo={() => setAsking(null)}
+              onNo={cancel}
             >
               {mode.kind === 'none' && !state.requiredSession ? saveCopy.staleReplaceChooseWarning : saveCopy.staleReplaceWarning}
             </Confirm>
@@ -371,11 +362,11 @@ export function Save() {
           <section>
             <h2>{saveCopy.removeHeading}</h2>
             {asking === 'remove' ? (
-              <Confirm title={saveCopy.removeHeading} yes={saveCopy.removeYes} no={saveCopy.removeKeep} onYes={removePassword} onNo={() => setAsking(null)}>
+              <Confirm title={saveCopy.removeHeading} yes={saveCopy.removeYes} no={saveCopy.removeKeep} onYes={removePassword} onNo={cancel}>
                 {PLAIN_WARNING}
               </Confirm>
             ) : (
-              <button type="button" disabled={busy} onClick={() => setAsking('remove')}>{saveCopy.removeButton}</button>
+              <button type="button" ref={focus.trigger('remove')} disabled={busy} onClick={() => setAsking('remove')}>{saveCopy.removeButton}</button>
             )}
           </section>
         </>
@@ -406,13 +397,13 @@ export function Save() {
                 yes={saveCopy.removeYes}
                 no={saveCopy.removeKeep}
                 onYes={() => saveInBrowser(false, true)}
-                onNo={() => setAsking(null)}
+                onNo={cancel}
               >
                 {PLAIN_WARNING}
               </Confirm>
             )}
             <p class="actions">
-              {browserOk && <button type="button" disabled={busy} onClick={() => saveInBrowser(false)}>{saveCopy.labels.saveBrowserPlain}</button>}
+              {browserOk && <button type="button" ref={focus.trigger('plain')} disabled={busy} onClick={() => saveInBrowser(false)}>{saveCopy.labels.saveBrowserPlain}</button>}
               <button type="button" disabled={busy} onClick={() => downloadFile(false)}>{saveCopy.labels.downloadPlain}</button>
             </p>
           </section>
@@ -439,11 +430,11 @@ export function Save() {
         <section>
           <h2>{saveCopy.stopHeading}</h2>
           {asking === 'stop' ? (
-            <Confirm title={saveCopy.stopHeading} yes={saveCopy.stopYes} no={saveCopy.stopKeep} onYes={stopSaving} onNo={() => setAsking(null)}>
+            <Confirm title={saveCopy.stopHeading} yes={saveCopy.stopYes} no={saveCopy.stopKeep} onYes={stopSaving} onNo={cancel}>
               {saveCopy.stopText}
             </Confirm>
           ) : (
-            <button type="button" disabled={busy} onClick={() => setAsking('stop')}>{saveCopy.stopHeading}</button>
+            <button type="button" ref={focus.trigger('stop')} disabled={busy} onClick={() => setAsking('stop')}>{saveCopy.stopHeading}</button>
           )}
         </section>
       )}

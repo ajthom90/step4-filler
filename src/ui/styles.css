@@ -88,7 +88,7 @@ textarea:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .add .field { flex: 1 1 14rem; margin: 0; }
 .items li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
 .items .item-text { flex: 1 1 10rem; min-width: 0; }
-.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.items .notice { flex: 1 1 100%; margin: 0.25rem 0 0; }
 .stepnav { position: sticky; bottom: 0; display: flex; gap: 0.75rem; padding: 0.75rem 0; margin-top: 1.5rem; background: var(--bg); border-top: 1px solid var(--line); }
 .stepnav .primary { flex: 1; }
 details { margin: 0.25rem 0; }
