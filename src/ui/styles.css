@@ -109,3 +109,12 @@ summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: cent
 .flaw .flaw-defect, .flaw .note { display: block; }
 .flaws li { border-bottom: 1px solid var(--line); }
 section > h2 { margin-top: 1.5rem; }
+
+/* Saving */
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0; }
+.button { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0.5rem 1.25rem; border-radius: 0.4rem; border: 1px solid var(--accent); text-decoration: none; }
+a.button.primary { background: var(--accent); color: var(--accent-text); }
+.wide { width: 100%; margin: 0; }
+input[type='password'], input[type='file'] { width: 100%; font: inherit; font-size: 1rem; padding: 0.6rem 0.7rem; color: var(--text); background: var(--bg); border: 1px solid var(--muted); border-radius: 0.4rem; }
+input[type='password']:focus-visible, input[type='file']:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+main section > h2 { margin-top: 1.5rem; }

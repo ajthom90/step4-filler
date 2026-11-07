@@ -15,7 +15,7 @@ import { EARNEST_PRAYERS, screens as harmScreens } from '../../content/harms';
 import { HelpSheet } from '../HelpSheet';
 import { routeHash } from '../router';
 import { entryName, listEntries, stepCopy, stepLabel } from '../stepCopy';
-import { flushDraft, useApp } from '../store';
+import { commitEdit, flushDraft, useApp } from '../store';
 
 const BODIES: Record<Step['kind'], FunctionComponent<StepProps>> = {
   intro: IntroStep,
@@ -127,6 +127,7 @@ export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; ste
     flushDraft(); // anything typed but not added is added first
     let after!: InventoryDoc;
     update((d) => (after = markVisited(d, step.key)));
+    commitEdit(); // a step left
     const seen = firstSeen.current;
     // From the list, move on past what is unfinished only if names were added or work remains; otherwise just step forward.
     const gained = listEntries(after, inventory).length > (seen?.entries ?? 0);
@@ -151,7 +152,7 @@ export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; ste
       )}
       {inventory === 'harms' && <EarnestPrayers />}
       <div class="stepnav">
-        <button type="button" onClick={() => (before ? go(stepRoute(inventory, before.key)) : go({ name: 'home' }))}>Back</button>
+        <button type="button" onClick={() => { commitEdit(); if (before) go(stepRoute(inventory, before.key)); else go({ name: 'home' }); }}>Back</button>
         <button type="button" class="primary" onClick={next}>{nextLabel}</button>
       </div>
     </>

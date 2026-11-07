@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { addEntry, removeEntry, renameEntry } from '../../core/edit';
 import { Definitions, HelpSheet } from '../HelpSheet';
 import { listEntries } from '../stepCopy';
-import { registerDraft } from '../store';
+import { commitEdit, registerDraft } from '../store';
 import type { StepProps } from './types';
 
 /**
@@ -79,6 +79,7 @@ export function ListStep({ doc, step, copy, update }: StepProps) {
     const v = value.trim();
     if (v === '') return;
     update((d) => addEntry(d, inv, v));
+    commitEdit(); // an entry added
   };
   // Whatever is typed but not added is added before the screen changes or the page is hidden.
   const commitDraft = () => {

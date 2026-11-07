@@ -4,6 +4,7 @@ import { routeHash } from '../router';
 import { stepLabel } from '../stepCopy';
 import { INVENTORY_BLURBS, INVENTORY_TITLES, progressLabel } from '../stepInfo';
 import { useApp } from '../store';
+import { OpenFile } from './Save';
 
 const INVENTORIES: InventoryId[] = ['resentments', 'fears', 'harms'];
 
@@ -64,8 +65,9 @@ export function Home() {
         </li>
       </ul>
       <p>
-        <a href="#/print">Print or download</a> · <a href="#/settings">Settings</a>
+        <a href="#/save">Save</a> · <a href="#/print">Print or download</a> · <a href="#/settings">Settings</a>
       </p>
+      <OpenFile />
     </>
   );
 }

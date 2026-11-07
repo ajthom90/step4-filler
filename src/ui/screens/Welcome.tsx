@@ -3,6 +3,7 @@ import { DISCLAIMER } from '../../content/copy';
 import { emptyDoc, type GodWord, type PresetId } from '../../core/doc';
 import { GodWordPicker, PresetPicker } from '../Pickers';
 import { startInventory } from '../store';
+import { OpenFile } from './Save';
 
 export function Welcome() {
   const [preset, setPreset] = useState<PresetId | null>(null);
@@ -23,6 +24,7 @@ export function Welcome() {
         </button>
         {preset === null && <span class="note"> Choose what the inventory is about to continue.</span>}
       </p>
+      <OpenFile />
     </>
   );
 }

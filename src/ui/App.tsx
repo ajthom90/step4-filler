@@ -6,20 +6,15 @@ import { Pledge } from './screens/Pledge';
 import { Home } from './screens/Home';
 import { Privacy } from './screens/Privacy';
 import { StepRunner } from './screens/StepRunner';
+import { Save } from './screens/Save';
 import { Settings } from './screens/Settings';
 import { Support } from './screens/Support';
+import { Unlock } from './screens/Unlock';
 import { Welcome } from './screens/Welcome';
 import { routeHash, type Route } from './router';
+import { SavePrompt } from './SavePrompt';
+import { LockButton, SaveStatus } from './SaveStatus';
 import { useApp } from './store';
-import type { SaveStatus } from '../core/saver';
-
-const STATUS_TEXT: Record<SaveStatus, string> = {
-  unsaved: 'Not saved',
-  saving: 'Saving…',
-  saved: 'Saved on this device',
-  failed: "Couldn't save. Your work is still open here.",
-  stale: 'Changed in another tab',
-};
 
 /** Screens other tasks add; each shows a plain placeholder until then. */
 function Placeholder({ title }: { title: string }) {
@@ -48,7 +43,7 @@ function Screen({ route }: { route: Route }) {
   if (route.name === 'support') return <Support />;
   if (!state.doc) {
     if (state.loadProblem) return <Problem message={state.loadProblem} />;
-    if (state.pendingEnvelope || state.locked || route.name === 'unlock') return <Placeholder title="Unlock" />;
+    if (state.pendingEnvelope || state.locked) return <Unlock />;
     return <Welcome />;
   }
   switch (route.name) {
@@ -56,8 +51,7 @@ function Screen({ route }: { route: Route }) {
     case 'checklist': return <Checklist />;
     case 'pledge': return <Pledge />;
     case 'print': return <Placeholder title="Print or download" />;
-    case 'save': return <Placeholder title="Save" />;
-    case 'unlock': return <Placeholder title="Unlock" />;
+    case 'save': return <Save />;
     case 'step':
       return <StepRunner inventory={route.inventory} stepKey={route.key} />;
     default: return <Home />;
@@ -84,13 +78,15 @@ export function App() {
           {state.doc && <a href="#/settings">Settings</a>}
           <a href="#/support">Support</a>
         </nav>
-        {state.doc && <p class="status" role="status">{STATUS_TEXT[state.saveStatus]}</p>}
+        {state.doc && <LockButton />}
+        {state.doc && <SaveStatus />}
       </header>
       {state.saveStatus === 'stale' && (
         <p class="notice alert" role="alert">
           Another tab saved a newer version of this inventory. Reload this page to see it. This page will not overwrite it.
         </p>
       )}
+      <SavePrompt />
       <main ref={main}>
         <Screen route={state.route} />
       </main>

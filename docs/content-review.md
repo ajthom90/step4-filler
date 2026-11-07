@@ -200,3 +200,35 @@ Where the wording lives: `src/content/checklist.ts` (`checklistCopy`) and `src/c
 | Pledge add fields | "Add to (list heading)", for example "Add to Binge foods" | New |
 | Pledge remove warning | "This removes it from the list." | New |
 | Pledge name and date | Labels "Signature" and "Date"; both are typed text, and the name counts as a signature only on the printed copy | Builder's call from the design |
+
+## 5c. Wording for saving, opening, locking and erasing
+
+Where the wording lives: `src/content/copy.ts` (`saveCopy`). The two required warnings are unchanged and appear next to every password or no-password choice. Generic button and field labels (Cancel, Password, Unlock, Lock, Open file) are not listed.
+
+| Where | Wording | Notes |
+| --- | --- | --- |
+| Save screen | "Save your progress" / "Nothing is ever sent to a server." | Heading and line follow the mockup |
+| Save screen, current state | "Right now: not saved in this browser. Your work is only on this page." (also "...saved in this browser as readable text." and "...with a password.") | New |
+| Save screen, no storage | "This browser isn't letting the site store anything, so saving in this browser isn't available. You can still download a file." | New; shown when browser storage is blocked |
+| Sections | "With a password (safer)" and "Without a password", with the two required warnings | Headings from the mockup |
+| Password hint | "At least 8 characters. A short sentence you will remember works well." | New |
+| Password refused | "Use at least 8 characters." and "The two passwords don't match." | New; there is no other password rule |
+| Saved in this browser | "Saved in this browser as readable text. Changes you make from now on save here by themselves." and "Saved in this browser with your password. Changes you make from now on save here by themselves. You will need the password each time you open the site." | New; shown only after the save has really happened |
+| Downloaded | "Downloaded as (file name). Your browser decides where it goes, so check your Downloads folder. Keep it somewhere you trust." | New; the site cannot see where the browser put the file |
+| Backup section | "Keep a backup file"; "Browsers can clear saved site data. Safari can delete it after about a week without a visit, and other browsers can do the same when storage runs low. A downloaded file is the safest backup. Open it on this site later, on any device, to carry on where you left off." | From the design |
+| Save failed | "Couldn't save in this browser. Its storage may be full or turned off. Nothing was changed, and your work is still open on this page. Downloading a file may still work." | New |
+| Too large | "Your inventory is bigger than this site can save or open again (5 MB). It can't be saved in this browser, and it can't be downloaded either. Shorten the longest entries, then try again." | New |
+| Another tab changed the save | "Another tab changed the save in this browser. Reload this page to see the newer version. That is the safe choice." Buttons "Reload this page" and "Replace the other tab's save with what is open here"; the second asks "This permanently overwrites what the other tab saved. Only do it if what is open here is the version you want." | New |
+| Change password | "Password changed. The old password no longer opens the copy saved in this browser. Files you downloaded earlier still need the password they were made with." | New |
+| Remove password | Button "Remove the password"; the question shows the no-password warning, then "Remove the password and save as readable text" or "Keep the password"; afterwards "The password is removed. The copy saved in this browser is now readable text." | New |
+| Stop saving in this browser | "This deletes the copy saved in this browser. Your work stays open on this page, and you can still download a file." Then "The saved copy in this browser is deleted. Your work is still open on this page, but it is not saved anywhere." | New; switching to no browser save deletes the old copy, so a readable copy is never left behind unknowingly |
+| Save prompt | "Save your work" / "Your work is only on this page right now. Closing it, or switching apps on a phone, can lose it." Buttons "Choose how to save" and "Not now" | New; appears after the third change, and again after every ten more once dismissed |
+| Header status | "Not saved. Your work is only on this page." / "Matches your file. No changes since." / "Unsaved changes since your file" / "Changes not saved yet" / "Saved on this device" / "Saved on this device, with a password" / "Couldn't save. Your work is still open here." / "Changed in another tab" | New |
+| Unlock | "Unlock your inventory" / "Your inventory is locked. Enter your password to open it." / "That password didn't open it. Check it and try again. The saved copy has not been changed." | New |
+| Forgot password | "Forgot your password?" / "No one can reset it, and the saved copy can't be read without it. If you have a downloaded file, you can open that instead. Otherwise you can erase the saved copy and start over." | New |
+| Lock fails | "Couldn't lock, because the latest changes couldn't be saved. Nothing was cleared. Download a file to keep your work, then try again." | New |
+| Open a file | "Open a saved file" / "The file is checked on this device. Nothing is uploaded." / "This file is protected with a password." | New |
+| Bad files | Too large: "This file is larger than 5 MB, which is more than this site can open. Nothing was changed." Not an inventory: "This isn't an inventory file from this site. Nothing was changed." Newer: "This file was made by a newer version of this site. Nothing was changed. Try again on the newest version." Damaged: "This file looks damaged or incomplete, so it was not opened. Nothing was changed." Wrong password: "That password didn't open the file, or the file has been changed. Nothing was changed." | New; a wrong password and an altered file cannot be told apart |
+| Replace what is open | "Replace what is open here?" with three versions: not saved in this browser, saved in this browser, or a locked copy waiting ("The password-protected copy saved in this browser stays as it is until you choose how to save the opened inventory. Choosing replaces it.") | New |
+| Erase everything | "This deletes your inventory from this browser and closes it on this page. It can't delete files you have already downloaded or printed, or copies in your device's backups. Download a file first if you want to keep your work." Buttons "Yes, erase everything" and "Keep my inventory" | From the design, with the extra backup line |
+| Erase fails | "Couldn't delete the saved copy. Close other tabs of this site and try again, or clear this site's data in your browser's settings." | New |

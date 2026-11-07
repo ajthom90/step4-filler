@@ -3,7 +3,7 @@ import { pledgeCopy } from '../../content/pledge';
 import { PRESETS } from '../../content/presets';
 import type { InventoryDoc } from '../../core/doc';
 import { ItemList } from '../steps/ListStep';
-import { registerDraft, useApp } from '../store';
+import { commitEdit, registerDraft, useApp } from '../store';
 
 type ListKey = 'listA' | 'listB';
 type Pledge = InventoryDoc['pledge'];
@@ -22,7 +22,9 @@ export function Pledge() {
     const value = typed.current[key].trim();
     typed.current[key] = '';
     setText((t) => ({ ...t, [key]: '' }));
-    if (value !== '') patch((p) => ({ [key]: [...p[key], value] }));
+    if (value === '') return;
+    patch((p) => ({ [key]: [...p[key], value] }));
+    commitEdit(); // an item added
   };
   // Whatever is typed but not added is added before the screen changes or the page is hidden.
   useEffect(() => registerDraft(() => { add('listA'); add('listB'); }));

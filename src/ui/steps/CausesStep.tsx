@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { addCause, editCause, removeCause } from '../../core/edit';
-import { registerDraft } from '../store';
+import { commitEdit, registerDraft } from '../store';
 import { ItemList } from './ListStep';
 import type { StepProps } from './types';
 
@@ -16,7 +16,9 @@ export function CausesStep({ doc, step, copy, update }: StepProps) {
     const pending = typed.current.trim();
     typed.current = '';
     setText('');
-    if (pending !== '') update((d) => addCause(d, entryId, pending));
+    if (pending === '') return;
+    update((d) => addCause(d, entryId, pending));
+    commitEdit(); // a cause added
   };
   useEffect(() => registerDraft(commitDraft));
 

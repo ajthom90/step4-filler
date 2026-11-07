@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { Envelope } from '../core/crypto';
+import type { Envelope, SessionKey } from '../core/crypto';
 import type { InventoryDoc } from '../core/doc';
 import { parseSaved } from '../core/fileformat';
 import { Saver, type SaveMode, type SaveStatus } from '../core/saver';
@@ -11,7 +11,14 @@ export interface AppState {
   route: Route;
   saveStatus: SaveStatus;
   mode: SaveMode;
+  /** Committed changes since the save prompt was last shown or dismissed (see commitEdit). */
   editsSincePrompt: number;
+  /** True once the prompt has been dismissed, so it comes back after SAVE_REPROMPT_EVERY edits, not SAVE_PROMPT_AFTER. */
+  promptDismissed: boolean;
+  /** The version of the inventory that matches a copy outside this page (a file), or that has never been edited. */
+  cleanDoc: InventoryDoc | null;
+  /** Whether cleanDoc was downloaded or opened as a file, as opposed to never having been edited. */
+  hasFile: boolean;
   locked: boolean;
   /** Set when the stored save could not be read. It is left untouched, and nothing is written over it. */
   loadProblem: string | null;
@@ -38,6 +45,8 @@ function readStorage(): Storage | null {
 }
 
 let state: AppState;
+/** The document changed since the last committed edit was counted. */
+let dirty = false;
 /** Commits the add-field text of the step on screen, if any. One step at a time registers it. */
 let draftCommitter: (() => void) | null = null;
 
@@ -70,6 +79,9 @@ function start(): void {
     saveStatus: 'unsaved',
     mode: { kind: 'none' },
     editsSincePrompt: 0,
+    promptDismissed: false,
+    cleanDoc: null,
+    hasFile: false,
     locked: false,
     loadProblem: null,
     pendingEnvelope: null,
@@ -81,7 +93,7 @@ function start(): void {
       if (parsed.kind === 'encrypted') {
         state = { ...state, pendingEnvelope: parsed.envelope, route: { name: 'unlock' } };
       } else {
-        state = { ...state, doc: parsed.doc };
+        state = { ...state, doc: parsed.doc, cleanDoc: parsed.doc };
         // loadRaw reset the mode; writing resumes only through setMode.
         setSaveMode({ kind: 'browser-plain' }).catch(() => undefined); // the failure shows through saveStatus
       }
@@ -98,6 +110,16 @@ function start(): void {
   window.addEventListener('pagehide', () => {
     flushDraft();
     void saver.flush().catch(() => undefined);
+  });
+  // A page with work that exists nowhere else asks before it is closed.
+  window.addEventListener('beforeunload', (e) => {
+    if (!hasUnsavedWork()) return;
+    e.preventDefault();
+    e.returnValue = ''; // some browsers need this to show the question
+  });
+  // Leaving a field that was changed is a committed change.
+  document.addEventListener('focusout', () => {
+    if (dirty) commitEdit();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'hidden') return;
@@ -126,18 +148,117 @@ function go(route: Route): void {
 function update(fn: (d: InventoryDoc) => InventoryDoc): void {
   if (!state.doc) return;
   const doc = fn(state.doc);
-  set({ doc, editsSincePrompt: state.editsSincePrompt + 1 });
+  dirty = true; // update runs on every keystroke, so it never counts edits itself
+  set({ doc });
   saver.edited(doc);
 }
 
-function lock(): void {
+/**
+ * Counts one committed change: an entry or cause added, a step left, or a changed field left.
+ * Never called per keystroke.
+ */
+export function commitEdit(): void {
+  dirty = false;
+  if (!state.doc) return;
+  set({ editsSincePrompt: state.editsSincePrompt + 1 });
+}
+
+export function dismissPrompt(): void {
+  set({ editsSincePrompt: 0, promptDismissed: true });
+}
+
+export function currentState(): AppState {
+  return state;
+}
+
+/** Work that exists only on this page: nothing saved, nothing downloaded since the last change. */
+function hasUnsavedWork(): boolean {
+  const { doc, mode, saveStatus, cleanDoc } = state;
+  if (!doc) return false;
+  if (mode.kind === 'none') return doc !== cleanDoc;
+  return saveStatus === 'unsaved' || saveStatus === 'saving' || saveStatus === 'failed';
+}
+
+/** A downloaded file now matches this version of the inventory. */
+export function markDownloaded(doc: InventoryDoc): void {
+  set({ cleanDoc: doc, hasFile: true });
+}
+
+/**
+ * Clears the inventory and the key from memory. The latest changes are written first, and if
+ * they cannot be, nothing is cleared and this rejects, so typed text is never dropped silently.
+ */
+async function lock(): Promise<void> {
+  if (state.mode.kind !== 'browser-encrypted' || !state.doc) throw new Error('Lock needs a password-protected browser save');
+  flushDraft();
+  await saver.flush();
+  if (state.saveStatus !== 'saved') throw new Error('The latest changes are not saved');
   saver.lock();
-  set({ doc: null, locked: true, mode: { kind: 'none' } });
+  let pendingEnvelope: Envelope | null = null;
+  try {
+    const parsed = parseSaved(saver.loadRaw() ?? '');
+    if (parsed.kind === 'encrypted') pendingEnvelope = parsed.envelope;
+  } catch {
+    // The copy is safe in storage; the unlock screen says it could not be read.
+  }
+  dirty = false;
+  set({
+    doc: null, locked: true, mode: { kind: 'none' }, pendingEnvelope, cleanDoc: null, hasFile: false,
+    editsSincePrompt: 0, promptDismissed: false, route: { name: 'unlock' }, saveStatus: 'unsaved',
+  });
+}
+
+/** Opens the inventory an unlocked save held, and keeps saving it under the same password. */
+export async function unlockWith(doc: InventoryDoc, session: SessionKey): Promise<void> {
+  const wanted = parseRoute(window.location.hash);
+  const route: Route = wanted.name === 'unlock' ? { name: 'home' } : wanted;
+  dirty = false;
+  set({ doc, pendingEnvelope: null, locked: false, cleanDoc: doc, hasFile: false, editsSincePrompt: 0, promptDismissed: false, route });
+  if (wanted.name === 'unlock') go(route);
+  // loadRaw reset the mode; the failure shows through saveStatus.
+  await setSaveMode({ kind: 'browser-encrypted', session });
+}
+
+/**
+ * Replaces what is open with an inventory read from a file. A browser save already in use
+ * keeps saving, now holding the opened inventory; otherwise the file is the only copy.
+ */
+export async function openDocument(doc: InventoryDoc): Promise<void> {
+  const previous = state.mode;
+  dirty = false;
+  set({
+    doc, pendingEnvelope: null, locked: false, loadProblem: null,
+    cleanDoc: doc, hasFile: true, editsSincePrompt: 0, promptDismissed: false,
+  });
+  go({ name: 'home' });
+  if (previous.kind !== 'none') await setSaveMode(previous);
+}
+
+/**
+ * Deletes the browser save. Returns false, changing nothing on screen, when it is still there.
+ * With `keepOpen` the inventory stays on this page, unsaved; otherwise the page starts over.
+ */
+export function eraseBrowserData(keepOpen: boolean): boolean {
+  saver.eraseAll();
+  const stillThere = saver.loadRaw() !== null;
+  // The saver stopped saving either way, so the screen must say so.
+  set({ mode: { kind: 'none' }, saveStatus: 'unsaved' });
+  if (stillThere) return false;
+  if (!keepOpen) {
+    dirty = false;
+    set({
+      doc: null, pendingEnvelope: null, locked: false, loadProblem: null, cleanDoc: null, hasFile: false,
+      editsSincePrompt: 0, promptDismissed: false,
+    });
+    go({ name: 'welcome' });
+  }
+  return true;
 }
 
 /** Starts an inventory in memory only. Nothing is stored until a save method is chosen. */
 export function startInventory(doc: InventoryDoc): void {
-  set({ doc, route: { name: 'home' } });
+  dirty = false;
+  set({ doc, cleanDoc: doc, hasFile: false, route: { name: 'home' } });
   go({ name: 'home' });
 }
 
