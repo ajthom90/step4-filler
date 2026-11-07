@@ -37,6 +37,8 @@ export class Saver {
   private modeSeq = 0;
   /** Mode changes queued or running; edits made meanwhile are held, not dropped. */
   private changing = 0;
+  /** The epoch of the newest setMode; edits are held only while it is still current. */
+  private changeEpoch = -1;
   private queue: Promise<unknown> = Promise.resolve();
   /** What storage held when we last read or wrote it; undefined until first known. */
   private known: string | null | undefined;
@@ -106,6 +108,7 @@ export class Saver {
     this.cancelTimer();
     this.pending = null;
     const epoch = ++this.epoch;
+    this.changeEpoch = epoch;
     const seq = ++this.modeSeq;
     this.changing++;
     try {
@@ -132,6 +135,13 @@ export class Saver {
         this.stale = false;
         this.onStatus(this.pending === null ? 'saved' : 'unsaved');
       });
+    } catch (err) {
+      // Whatever was held belongs to a save that did not happen; never let it write later.
+      if (this.stale) {
+        this.cancelTimer();
+        this.pending = null;
+      }
+      throw err;
     } finally {
       this.changing--;
     }
@@ -143,7 +153,8 @@ export class Saver {
   }
 
   edited(doc: InventoryDoc): void {
-    if (this.changing === 0 && (this.stale || this.mode.kind === 'none')) return;
+    const holding = this.changing > 0 && this.changeEpoch === this.epoch;
+    if (!holding && (this.stale || this.mode.kind === 'none')) return;
     this.pending = doc;
     this.onStatus('unsaved');
     this.cancelTimer();
@@ -187,8 +198,15 @@ export class Saver {
     this.mode = { kind: 'none' };
   }
 
-  /** Remembers what it read, so later writes can tell whether another tab saved since. */
+  /**
+   * Adopts the stored value: it becomes the baseline, and anything pending or in flight is
+   * dropped. Writing resumes only through setMode.
+   */
   loadRaw(): string | null {
+    this.cancelTimer();
+    this.pending = null;
+    this.epoch++;
+    this.mode = { kind: 'none' };
     try {
       const value = this.storage?.getItem(STORAGE_KEY) ?? null;
       if (this.storage) {

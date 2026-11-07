@@ -371,5 +371,68 @@ describe('Saver', () => {
       await vi.advanceTimersByTimeAsync(800);
       expect(storage.getItem(STORAGE_KEY)).toContain('newer');
     });
+
+    it('S1(1): an edit held during a setMode that is then abandoned stale never overwrites the other tab', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      const session = await createKey('longenough');
+      const p = s.setMode({ kind: 'browser-encrypted', session }, docWith('first'));
+      const settled = expect(p).rejects.toThrow();
+      otherTabWrote('{"theirs":true}');
+      storage.setItem(STORAGE_KEY, '{"theirs":true}');
+      s.edited(docWith('HELD-SECRET'));
+      await settled;
+      await vi.advanceTimersByTimeAsync(5000);
+      await s.flush();
+      expect(storage.getItem(STORAGE_KEY)).toBe('{"theirs":true}');
+    });
+
+    it('S1(2): loadRaw after an abandoned setMode leaves nothing for the held edit to write', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      const session = await createKey('longenough');
+      const p = s.setMode({ kind: 'browser-encrypted', session }, docWith('first'));
+      const settled = expect(p).rejects.toThrow();
+      otherTabWrote('{"theirs":true}');
+      storage.setItem(STORAGE_KEY, '{"theirs":true}');
+      s.edited(docWith('HELD-SECRET'));
+      await settled;
+      s.loadRaw();
+      await vi.advanceTimersByTimeAsync(5000);
+      await s.flush();
+      expect(storage.getItem(STORAGE_KEY)).toBe('{"theirs":true}');
+      expect(storage.getItem(STORAGE_KEY)).not.toContain('HELD-SECRET');
+    });
+
+    it('S1(3): after loadRaw, edits write nothing until setMode', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      const before = storage.getItem(STORAGE_KEY);
+      s.loadRaw();
+      s.edited(docWith('AFTER-LOAD'));
+      await vi.advanceTimersByTimeAsync(5000);
+      await s.flush();
+      expect(storage.getItem(STORAGE_KEY)).toBe(before);
+      await s.setMode({ kind: 'browser-plain' }, docWith('chosen'));
+      s.edited(docWith('later'));
+      await vi.advanceTimersByTimeAsync(800);
+      expect(storage.getItem(STORAGE_KEY)).toContain('later');
+    });
+
+    it('S1(4): an edit after lock during an unwinding setMode leaves no timer and no write', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      const before = storage.getItem(STORAGE_KEY);
+      const session = await createKey('longenough');
+      const p = s.setMode({ kind: 'browser-encrypted', session }, docWith('first'));
+      const settled = p.catch(() => undefined);
+      s.lock();
+      s.edited(docWith('AFTER-LOCK'));
+      expect(vi.getTimerCount()).toBe(0);
+      await settled;
+      await vi.advanceTimersByTimeAsync(5000);
+      await s.flush();
+      expect(storage.getItem(STORAGE_KEY)).toBe(before);
+    });
   });
 });
