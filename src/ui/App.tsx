@@ -1,0 +1,96 @@
+import { useEffect, useRef } from 'preact/hooks';
+import { site } from '../../site.config';
+import { Footer } from './Footer';
+import { Home } from './screens/Home';
+import { Privacy } from './screens/Privacy';
+import { Settings } from './screens/Settings';
+import { Support } from './screens/Support';
+import { Welcome } from './screens/Welcome';
+import { routeHash, type Route } from './router';
+import { useApp } from './store';
+import type { SaveStatus } from '../core/saver';
+
+const STATUS_TEXT: Record<SaveStatus, string> = {
+  unsaved: 'Not saved',
+  saving: 'Saving…',
+  saved: 'Saved on this device',
+  failed: "Couldn't save. Your work is still open here.",
+  stale: 'Changed in another tab',
+};
+
+/** Screens other tasks add; each shows a plain placeholder until then. */
+function Placeholder({ title }: { title: string }) {
+  return (
+    <>
+      <h1 tabIndex={-1}>{title}</h1>
+      <p>This part is not built yet.</p>
+      <p><a href="#/home">Back to your inventory</a></p>
+    </>
+  );
+}
+
+function Problem({ message }: { message: string }) {
+  return (
+    <>
+      <h1 tabIndex={-1}>Your saved inventory can't be opened</h1>
+      <p role="alert">{message}</p>
+      <p>Nothing has been changed or erased. Close other copies of this site and reload the page, or ask for help before doing anything else.</p>
+    </>
+  );
+}
+
+function Screen({ route }: { route: Route }) {
+  const { state } = useApp();
+  if (route.name === 'privacy') return <Privacy />;
+  if (route.name === 'support') return <Support />;
+  if (!state.doc) {
+    if (state.loadProblem) return <Problem message={state.loadProblem} />;
+    if (state.pendingEnvelope || state.locked || route.name === 'unlock') return <Placeholder title="Unlock" />;
+    return <Welcome />;
+  }
+  switch (route.name) {
+    case 'settings': return <Settings />;
+    case 'checklist': return <Placeholder title="Flaws and assets checklist" />;
+    case 'pledge': return <Placeholder title="Abstinence pledge" />;
+    case 'print': return <Placeholder title="Print or download" />;
+    case 'save': return <Placeholder title="Save" />;
+    case 'unlock': return <Placeholder title="Unlock" />;
+    case 'step': return <Placeholder title="This step" />;
+    default: return <Home />;
+  }
+}
+
+export function App() {
+  const { state } = useApp();
+  const main = useRef<HTMLElement>(null);
+  const first = useRef(true);
+  const hash = routeHash(state.route);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    main.current?.querySelector<HTMLElement>('h1')?.focus();
+  }, [hash]);
+  return (
+    <div class="shell">
+      <header class="header">
+        <a class="brand" href="#/home">{site.name}</a>
+        <nav aria-label="Main">
+          {state.doc && <a href="#/settings">Settings</a>}
+          <a href="#/support">Support</a>
+        </nav>
+        {state.doc && <p class="status" role="status">{STATUS_TEXT[state.saveStatus]}</p>}
+      </header>
+      {state.saveStatus === 'stale' && (
+        <p class="notice alert" role="alert">
+          Another tab saved a newer version of this inventory. Reload this page to see it. This page will not overwrite it.
+        </p>
+      )}
+      <main ref={main}>
+        <Screen route={state.route} />
+      </main>
+      <Footer />
+    </div>
+  );
+}

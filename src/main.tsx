@@ -1,4 +1,5 @@
 import { render } from 'preact'
-import { site } from '../site.config'
+import { App } from './ui/App'
+import './ui/styles.css'
 
-render(<h1>{site.name}</h1>, document.getElementById('app')!)
+render(<App />, document.getElementById('app')!)
