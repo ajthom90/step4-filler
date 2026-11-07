@@ -184,3 +184,19 @@ Fixed wording you set (unchanged):
 - Disclaimer: Not affiliated with Alcoholics Anonymous, Overeaters Anonymous, or any 12-step program.
 - Password warning: If you forget it, your inventory can't be recovered. No one can reset it.
 - No-password warning: Saved as readable text. Anyone using this device, or with the file, can read it.
+
+## 5b. Screen wording written fresh for the checklist and pledge
+
+Where the wording lives: `src/content/checklist.ts` (`checklistCopy`) and `src/content/pledge.ts` (`pledgeCopy`).
+
+| Where | Wording | Notes |
+| --- | --- | --- |
+| Checklist heading | "Flaws and assets checklist" | The handout's own title |
+| Checklist opening line | "Look through the list and tap anything that applies to you. Each one is shown with its opposite aspect. Skip the rest." | New |
+| Checklist search | Field label "Search the list"; when nothing matches, "Nothing matches that. Try another word." | New |
+| Each row | The defect, then "Opposite: (opposite aspect)", then "Sources: (numbers)" when the handout has footnote marks on it | Labels are new; the pairs are the handout's |
+| Checklist sources | Heading "Sources"; line "The small numbers beside some rows point to these sources."; the four footnotes as printed | Heading and line are new |
+| Pledge heading | "Abstinence pledge", with "(optional)" on the home screen | Title is new; the handout calls it "Pledge" |
+| Pledge add fields | "Add to (list heading)", for example "Add to Binge foods" | New |
+| Pledge remove warning | "This removes it from the list." | New |
+| Pledge name and date | Labels "Signature" and "Date"; both are typed text, and the name counts as a signature only on the printed copy | Builder's call from the design |

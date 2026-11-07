@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { site } from '../../site.config';
 import { Footer } from './Footer';
+import { Checklist } from './screens/Checklist';
+import { Pledge } from './screens/Pledge';
 import { Home } from './screens/Home';
 import { Privacy } from './screens/Privacy';
 import { StepRunner } from './screens/StepRunner';
@@ -51,8 +53,8 @@ function Screen({ route }: { route: Route }) {
   }
   switch (route.name) {
     case 'settings': return <Settings />;
-    case 'checklist': return <Placeholder title="Flaws and assets checklist" />;
-    case 'pledge': return <Placeholder title="Abstinence pledge" />;
+    case 'checklist': return <Checklist />;
+    case 'pledge': return <Pledge />;
     case 'print': return <Placeholder title="Print or download" />;
     case 'save': return <Placeholder title="Save" />;
     case 'unlock': return <Placeholder title="Unlock" />;

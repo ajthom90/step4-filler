@@ -104,3 +104,8 @@ summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: cent
 .row-actions { display: flex; gap: 0.5rem; }
 .edit { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; width: 100%; }
 .edit .field { flex: 1 1 12rem; margin: 0; }
+.flaw { align-items: flex-start; padding: 0.4rem 0; }
+.flaw input { flex: none; margin-top: 0.2rem; }
+.flaw .flaw-defect, .flaw .note { display: block; }
+.flaws li { border-bottom: 1px solid var(--line); }
+section > h2 { margin-top: 1.5rem; }

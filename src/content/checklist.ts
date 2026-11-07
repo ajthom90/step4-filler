@@ -9,6 +9,18 @@ export const FLAW_FOOTNOTES: Record<number, string> = {
   4: "Boy Scout Law, Robert Binkey's The Official Boy Scout Handbook (10th edition, 1990)",
 };
 
+/** Screen wording written fresh (see docs/content-review.md, section 5b). */
+export const checklistCopy = {
+  title: 'Flaws and assets checklist',
+  intro: 'Look through the list and tap anything that applies to you. Each one is shown with its opposite aspect. Skip the rest.',
+  searchLabel: 'Search the list',
+  noMatches: 'Nothing matches that. Try another word.',
+  sourcesHeading: 'Sources',
+  sourcesIntro: 'The small numbers beside some rows point to these sources.',
+  sourcesLabel: 'Sources:',
+  oppositeLabel: 'Opposite:',
+};
+
 export const OTHER_FLAWS_LABEL = 'Other dysfunctional ways of acting, feeling or thinking which cause others or me pain.';
 
 /**
