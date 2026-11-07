@@ -34,8 +34,12 @@ export class Saver {
   private stale = false;
   /** Bumped by anything that must abandon writes already under way. */
   private epoch = 0;
+  private modeSeq = 0;
+  /** Mode changes queued or running; edits made meanwhile are held, not dropped. */
+  private changing = 0;
   private queue: Promise<unknown> = Promise.resolve();
-  private lastWritten: string | null = null;
+  /** What storage held when we last read or wrote it; undefined until first known. */
+  private known: string | null | undefined;
 
   constructor(
     private readonly storage: Storage | null,
@@ -50,14 +54,17 @@ export class Saver {
     const { key, newValue } = e as Event & { key: string | null; newValue: string | null };
     // key is null when another tab clears all storage.
     if (key !== null && key !== STORAGE_KEY) return;
-    if (newValue === this.lastWritten) return;
-    if (this.mode.kind === 'none') return;
+    if (this.known === undefined || newValue === this.known) return;
+    this.markStale();
+  };
+
+  private markStale(): void {
     this.stale = true;
     this.epoch++;
     this.cancelTimer();
     this.pending = null;
     this.onStatus('stale');
-  };
+  }
 
   private cancelTimer(): void {
     if (this.timer !== null) clearTimeout(this.timer);
@@ -70,13 +77,22 @@ export class Saver {
     return run;
   }
 
-  /** Throws on failure; the previous stored value is replaced only by a successful setItem. */
-  private async writeNow(doc: InventoryDoc, mode: SaveMode, epoch: number): Promise<boolean> {
+  /**
+   * Throws on failure; the previous stored value is replaced only by a successful setItem.
+   * Returns false when the write was abandoned (locked, erased, or another tab got there first).
+   * `overwrite` skips the check against what we last saw: only a deliberate setMode from stale.
+   */
+  private async writeNow(doc: InventoryDoc, mode: SaveMode, epoch: number, overwrite: boolean): Promise<boolean> {
     if (mode.kind === 'none' || !this.storage) return false;
     const text = await render(doc, mode.kind === 'browser-encrypted' ? mode.session : undefined);
     if (epoch !== this.epoch) return false; // locked, erased, or gone stale meanwhile
+    // The storage event can be missed (frozen or restored tabs), so look before writing.
+    if (!overwrite && this.known !== undefined && this.storage.getItem(STORAGE_KEY) !== this.known) {
+      this.markStale();
+      return false;
+    }
     this.storage.setItem(STORAGE_KEY, text);
-    this.lastWritten = text;
+    this.known = text;
     return true;
   }
 
@@ -87,30 +103,46 @@ export class Saver {
     this.cancelTimer();
     this.pending = null;
     const epoch = ++this.epoch;
-    await this.serial(async () => {
-      if (mode.kind === 'none') {
+    const seq = ++this.modeSeq;
+    const overwrite = this.stale; // an explicit call from a stale state replaces the newer save
+    this.changing++;
+    try {
+      await this.serial(async () => {
+        if (seq !== this.modeSeq) return; // superseded by a newer setMode
+        if (epoch !== this.epoch) return this.abandoned();
+        if (mode.kind === 'none') {
+          this.mode = mode;
+          this.onStatus(this.stale ? 'stale' : 'unsaved');
+          return;
+        }
+        this.onStatus('saving');
+        let wrote: boolean;
+        try {
+          wrote = await this.writeNow(doc, mode, epoch, overwrite);
+        } catch (err) {
+          // The old mode and the old save stay as they were.
+          this.onStatus('failed');
+          throw err;
+        }
+        if (seq !== this.modeSeq) return;
+        if (!wrote) return this.abandoned();
         this.mode = mode;
         this.stale = false;
-        this.onStatus('unsaved');
-        return;
-      }
-      this.onStatus('saving');
-      try {
-        const wrote = await this.writeNow(doc, mode, epoch);
-        if (!wrote) return;
-      } catch (err) {
-        // The old mode and the old save stay as they were.
-        this.onStatus('failed');
-        throw err;
-      }
-      this.mode = mode;
-      this.stale = false;
-      this.onStatus('saved');
-    });
+        this.onStatus(this.pending === null ? 'saved' : 'unsaved');
+      });
+    } finally {
+      this.changing--;
+    }
+  }
+
+  private abandoned(): never {
+    if (this.stale) this.onStatus('stale');
+    throw new Error('The save mode change was abandoned');
   }
 
   edited(doc: InventoryDoc): void {
-    if (this.mode.kind === 'none' || this.stale) return;
+    if (this.stale) return;
+    if (this.mode.kind === 'none' && this.changing === 0) return;
     this.pending = doc;
     this.onStatus('unsaved');
     this.cancelTimer();
@@ -121,16 +153,16 @@ export class Saver {
   }
 
   private commit(): Promise<void> {
-    const doc = this.pending;
-    if (!doc || this.mode.kind === 'none' || this.stale) return Promise.resolve();
-    this.pending = null;
-    const { epoch } = this;
-    const mode = this.mode;
+    // Everything is read inside the task, after any mode change ahead of it has finished.
     return this.serial(async () => {
-      if (epoch !== this.epoch) return;
+      const doc = this.pending;
+      const { mode } = this;
+      if (!doc || mode.kind === 'none' || this.stale) return;
+      this.pending = null;
+      const { epoch } = this;
       this.onStatus('saving');
       try {
-        if (await this.writeNow(doc, mode, epoch)) {
+        if (await this.writeNow(doc, mode, epoch, false)) {
           // A newer edit arrived while saving: it has its own timer and keeps the status.
           if (this.pending === null) this.onStatus('saved');
         }
@@ -152,12 +184,17 @@ export class Saver {
     this.pending = null;
     this.epoch++;
     this.mode = { kind: 'none' };
-    this.stale = false;
   }
 
+  /** Remembers what it read, so later writes can tell whether another tab saved since. */
   loadRaw(): string | null {
     try {
-      return this.storage?.getItem(STORAGE_KEY) ?? null;
+      const value = this.storage?.getItem(STORAGE_KEY) ?? null;
+      if (this.storage) {
+        this.known = value;
+        this.stale = false;
+      }
+      return value;
     } catch {
       return null;
     }
@@ -165,9 +202,10 @@ export class Saver {
 
   eraseAll(): void {
     this.lock();
-    this.lastWritten = null;
+    this.stale = false;
     try {
       this.storage?.removeItem(STORAGE_KEY);
+      this.known = null;
     } catch {
       // Nothing more can be done; the caller sees the key again on reload.
     }

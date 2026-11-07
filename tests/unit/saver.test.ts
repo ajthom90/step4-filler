@@ -96,6 +96,7 @@ describe('Saver', () => {
     await s.setMode({ kind: 'browser-encrypted', session }, docWith('first'));
     s.edited(docWith('Secret Person'));
     await vi.advanceTimersByTimeAsync(800);
+    await s.flush(); // real crypto finishes outside fake time
     const raw = storage.getItem(STORAGE_KEY)!;
     expect(raw).not.toContain('Secret Person');
     expect(raw).not.toContain('first');
@@ -244,5 +245,87 @@ describe('Saver', () => {
   it('loadRaw survives a throwing getItem', () => {
     storage.getItem = () => { throw new Error('blocked'); };
     expect(make().loadRaw()).toBeNull();
+  });
+
+  describe('review fixes', () => {
+    it('C1: an edit and flush during setMode never writes under the old mode', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      const session = await createKey('longenough');
+      const p = s.setMode({ kind: 'browser-encrypted', session }, docWith('first'));
+      s.edited(docWith('TYPED-SECRET'));
+      await s.flush();
+      await p;
+      const raw = storage.getItem(STORAGE_KEY)!;
+      expect(raw).not.toContain('TYPED-SECRET');
+      expect(parseSaved(raw).kind).toBe('encrypted');
+      expect(statuses.at(-1)).toBe('saved');
+    });
+
+    it('I1a: a tab in mode none learns another tab saved, and unlocking cannot silently overwrite', async () => {
+      const s = make();
+      expect(s.loadRaw()).toBeNull();
+      storage.setItem(STORAGE_KEY, '{"theirs":true}');
+      otherTabWrote('{"theirs":true}');
+      expect(statuses.at(-1)).toBe('stale');
+      const session = await createKey('longenough');
+      // A deliberate setMode from stale is the explicit overwrite path.
+      await s.setMode({ kind: 'browser-encrypted', session }, docWith('mine'));
+      expect(parseSaved(storage.getItem(STORAGE_KEY)!).kind).toBe('encrypted');
+    });
+
+    it('I1b: a missed storage event is caught by comparing with the baseline before writing', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('mine'));
+      storage.setItem(STORAGE_KEY, '{"theirs":true}'); // no event delivered
+      s.edited(docWith('later'));
+      await vi.advanceTimersByTimeAsync(800);
+      expect(storage.getItem(STORAGE_KEY)).toBe('{"theirs":true}');
+      expect(statuses.at(-1)).toBe('stale');
+    });
+
+    it('I1b: setMode from a non-stale state also refuses a changed baseline', async () => {
+      const s = make();
+      s.loadRaw();
+      storage.setItem(STORAGE_KEY, '{"theirs":true}'); // no event delivered
+      await expect(s.setMode({ kind: 'browser-plain' }, docWith('mine'))).rejects.toThrow();
+      expect(storage.getItem(STORAGE_KEY)).toBe('{"theirs":true}');
+      expect(statuses.at(-1)).toBe('stale');
+    });
+
+    it('I2: a stale event during setMode rejects it and leaves the stale status', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      const readable = storage.getItem(STORAGE_KEY);
+      const session = await createKey('longenough');
+      const p = s.setMode({ kind: 'browser-encrypted', session }, docWith('first'));
+      const settled = expect(p).rejects.toThrow();
+      otherTabWrote('{"theirs":true}');
+      await settled;
+      expect(statuses.at(-1)).toBe('stale');
+      expect(storage.getItem(STORAGE_KEY)).toBe(readable);
+    });
+
+    it('I3a: an edit during the first setMode is saved, not discarded', async () => {
+      const s = make();
+      const p = s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      s.edited(docWith('during'));
+      await p;
+      expect(statuses.at(-1)).toBe('unsaved');
+      await vi.advanceTimersByTimeAsync(800);
+      expect(storage.getItem(STORAGE_KEY)).toContain('during');
+      expect(statuses.at(-1)).toBe('saved');
+    });
+
+    it('I3b: setMode does not report saved while an edit is pending', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      const p = s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      s.edited(docWith('newer'));
+      await p;
+      expect(statuses.at(-1)).toBe('unsaved');
+      await vi.advanceTimersByTimeAsync(800);
+      expect(storage.getItem(STORAGE_KEY)).toContain('newer');
+    });
   });
 });
