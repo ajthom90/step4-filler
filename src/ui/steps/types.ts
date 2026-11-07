@@ -9,4 +9,6 @@ export interface StepProps {
   step: Step;
   copy: StepCopy;
   update: Update;
+  /** The id of the on-screen name this step is about, for the field to be described by. */
+  describedBy?: string;
 }

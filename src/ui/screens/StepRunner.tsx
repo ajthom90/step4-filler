@@ -1,5 +1,5 @@
 import type { FunctionComponent } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { InventoryDoc } from '../../core/doc';
 import { markVisited } from '../../core/edit';
 import { blanks, isBlank, nextStep, progress, stepAfter, stepBefore, stepsFor, type InventoryId, type Step } from '../../core/flow';
@@ -11,6 +11,8 @@ import { PrayerStep } from '../steps/PrayerStep';
 import { TextStep } from '../steps/TextStep';
 import { TicksStep } from '../steps/TicksStep';
 import type { StepProps } from '../steps/types';
+import { EARNEST_PRAYERS } from '../../content/harms';
+import { HelpSheet } from '../HelpSheet';
 import { routeHash } from '../router';
 import { entryName, listEntries, stepCopy, stepLabel } from '../stepCopy';
 import { flushDraft, useApp } from '../store';
@@ -40,6 +42,23 @@ function destination(doc: InventoryDoc, step: Step, forward: boolean): Step | nu
   const steps = stepsFor(doc, step.inventory);
   const i = steps.findIndex((s) => s.key === step.key);
   return steps.slice(i + 1).find((s) => !doc.visited[s.key]) ?? nextStep(doc, step.inventory);
+}
+
+/** The Earnest Prayers (Big Book p. 70), one tap away on every sex conduct and harms step. */
+function EarnestPrayers() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <p class="side"><button type="button" onClick={() => setOpen(true)}>Earnest prayers (page 70)</button></p>
+      <HelpSheet open={open} title="Earnest prayers" onClose={() => setOpen(false)}>
+        <p>{EARNEST_PRAYERS.intro}</p>
+        <ul>
+          {EARNEST_PRAYERS.items.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+        {EARNEST_PRAYERS.closing.map((line) => <p key={line}>{line}</p>)}
+      </HelpSheet>
+    </>
+  );
 }
 
 function Finished({ inventory }: { inventory: InventoryId }) {
@@ -99,8 +118,8 @@ export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; ste
   const copy = stepCopy(doc, step);
   const Body = BODIES[step.kind];
   const who = entryName(doc, step);
-  // The causes and prayer questions already name the person.
-  const showWho = who !== undefined && step.kind !== 'causes' && step.kind !== 'prayer';
+  // The causes question and the resentment prayer already name the person.
+  const showWho = who !== undefined && step.kind !== 'causes' && !(step.kind === 'prayer' && inventory === 'resentments');
   const p = progress(doc, inventory);
   const before = stepBefore(doc, inventory, step.key);
 
@@ -121,15 +140,16 @@ export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; ste
     <>
       <p class="eyebrow" data-testid="eyebrow">{copy.eyebrow}</p>
       <progress class="bar" max={p.total} value={p.visited} aria-label="Progress through this inventory" />
-      {showWho && <p class="who" data-testid="who">{who}</p>}
-      <h1 tabIndex={-1} id="step-question">{copy.question}</h1>
+      {showWho && <p class="who" id="step-who" data-testid="who">{who}</p>}
+      <h1 tabIndex={-1} id="step-question" aria-describedby={showWho ? 'step-who' : undefined}>{copy.question}</h1>
       {step.kind !== 'intro' && <p class="hint">{copy.hint}</p>}
-      <Body key={step.key} doc={doc} step={step} copy={copy} update={update} />
+      <Body key={step.key} doc={doc} step={step} copy={copy} update={update} describedBy={showWho ? 'step-who' : undefined} />
       {step.kind !== 'list' && step.kind !== 'intro' && (
         <p class="side">
           <a href={routeHash(stepRoute(inventory, stepsFor(doc, inventory).find((s) => s.kind === 'list')?.key))}>Add another name</a>
         </p>
       )}
+      {inventory === 'harms' && <EarnestPrayers />}
       <div class="stepnav">
         <button type="button" onClick={() => (before ? go(stepRoute(inventory, before.key)) : go({ name: 'home' }))}>Back</button>
         <button type="button" class="primary" onClick={next}>{nextLabel}</button>

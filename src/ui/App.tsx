@@ -57,9 +57,7 @@ function Screen({ route }: { route: Route }) {
     case 'save': return <Placeholder title="Save" />;
     case 'unlock': return <Placeholder title="Unlock" />;
     case 'step':
-      return route.inventory === 'resentments'
-        ? <StepRunner inventory={route.inventory} stepKey={route.key} />
-        : <Placeholder title="This step" />; // fears and harms use the same runner once their wording is added
+      return <StepRunner inventory={route.inventory} stepKey={route.key} />;
     default: return <Home />;
   }
 }

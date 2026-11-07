@@ -1,5 +1,7 @@
-import { AFFECT_OPTIONS, copy as resentmentCopy, RESENTMENT_PRAYER, RESENTMENT_STUDY_NOTE } from '../content/resentments';
+import { AFFECT_OPTIONS, copy as resentmentCopy, DEFECT_DEFINITIONS as D, RESENTMENT_PRAYER, RESENTMENT_STUDY_NOTE } from '../content/resentments';
+import { copy as fearCopy, FEAR_PRAYER, TRUST_OPTIONS } from '../content/fears';
 import { contextFor, fill, type FillContext } from '../content/fill';
+import { copy as harmCopy, SEX_MEDITATION, SEX_PRAYER } from '../content/harms';
 import { promptsFor } from '../content/presets';
 import type { InventoryDoc } from '../core/doc';
 import { progress, type InventoryId, type Step } from '../core/flow';
@@ -16,6 +18,8 @@ export interface StepCopy {
   addLabel?: string;
   /** Prayer steps: the prayer itself, with the person's name and the chosen word filled in. */
   prayer?: string;
+  /** Prayer steps: the label on the box that marks it done. */
+  doneLabel?: string;
 }
 
 /** The name an entry goes by on screen: a resentment's person, a fear, or whom a harm was to. */
@@ -33,6 +37,8 @@ export function listEntries(doc: InventoryDoc, inv: InventoryId): { id: string; 
   if (inv === 'fears') return doc.fears.map((f) => ({ id: f.id, text: f.fear }));
   return doc.harms.map((h) => ({ id: h.id, text: h.who }));
 }
+
+const HARM_DEFECTS: Record<string, string> = { selfish: 'Selfish', dishonest: 'Dishonest', inconsiderate: 'Inconsiderate' };
 
 const DEFECT_QUESTIONS: Record<string, { question: string; label: string; hint: string }> = {
   selfish: { question: 'Where was I selfish?', label: 'Selfish', hint: 'Leave the other person out of it. Where were you wanting things your way?' },
@@ -111,9 +117,124 @@ function resentmentCopyFor(doc: InventoryDoc, step: Step): StepCopy {
   }
 }
 
+const YES_NO = [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }];
+
+/** The opening screen of an inventory: the pages to study first, then its instructions. */
+function introCopy(title: string, noun: string, content: { pages: string; instructions: string }, ctx: FillContext): StepCopy {
+  return {
+    eyebrow: `${title} · Before you begin`,
+    question: `Before you start the ${noun} inventory`,
+    hint: fill(`Pages to study first: ${content.pages}.\n\n${content.instructions}`, ctx),
+  };
+}
+
+function fearCopyFor(doc: InventoryDoc, step: Step): StepCopy {
+  const ctx = contextFor(doc.settings, entryName(doc, step));
+  const cols = fearCopy.columns;
+  const total = progress(doc, 'fears').totalColumns;
+  const column = (label: string) => `Column ${step.column} of ${total} · ${label}`;
+  const heading = (n: string) => fill(cols[n].heading, ctx);
+
+  switch (step.kind) {
+    case 'intro':
+      return introCopy('Fears', 'fear', fearCopy, ctx);
+    case 'list':
+      return {
+        eyebrow: column('Whom or what'),
+        question: heading('1'),
+        hint: fill(cols['1'].hint, ctx),
+        prompts: promptsFor(fearCopy.prompts, doc.settings.preset).map((p) => fill(p, ctx)),
+        addLabel: 'A fear',
+      };
+    case 'text':
+      if (step.field === 'why') {
+        return { eyebrow: column('Why'), question: heading('2'), hint: 'Say what is behind it, as plainly as you can.' };
+      }
+      return { eyebrow: column('What would you have me be'), question: heading('6'), hint: fill(cols['6'].hint, ctx) };
+    case 'choice':
+      if (step.field === 'trust') {
+        return {
+          eyebrow: column('Trust and reliance'),
+          question: heading('3'),
+          hint: fill(cols['3'].hint, ctx),
+          options: [
+            { value: 'god', label: fill(TRUST_OPTIONS.god, ctx) },
+            { value: 'self', label: fill(TRUST_OPTIONS.self, ctx) },
+          ],
+        };
+      }
+      return { eyebrow: column('Self reliance'), question: heading('4'), hint: cols['4'].hint, options: YES_NO };
+    default:
+      return {
+        eyebrow: column('Prayer'),
+        question: 'Say the Fear Prayer',
+        hint: 'Say it aloud or silently. You can mark it done, but you do not have to.',
+        prayer: fill(FEAR_PRAYER, ctx),
+      };
+  }
+}
+
+function harmCopyFor(doc: InventoryDoc, step: Step): StepCopy {
+  const ctx = contextFor(doc.settings, entryName(doc, step));
+  const cols = harmCopy.columns;
+  const total = progress(doc, 'harms').totalColumns;
+  const column = (label: string) => `Column ${step.column} of ${total} · ${label}`;
+  const heading = (n: string) => fill(cols[n].heading, ctx);
+
+  switch (step.kind) {
+    case 'intro':
+      return introCopy('Sex conduct and harms', 'sex conduct and harms', harmCopy, ctx);
+    case 'list':
+      return {
+        eyebrow: column('Whom I hurt'),
+        question: heading('1'),
+        hint: fill(cols['1'].hint, ctx),
+        prompts: promptsFor(harmCopy.prompts, doc.settings.preset).map((p) => fill(p, ctx)),
+        addLabel: 'A person or place',
+      };
+    case 'text': {
+      if (step.field === 'fault') {
+        return { eyebrow: column('At fault'), question: heading('4'), hint: 'Say what you did, and what you would do now.' };
+      }
+      const label = HARM_DEFECTS[step.field ?? ''];
+      return {
+        eyebrow: column('Selfish, dishonest, inconsiderate'),
+        question: `Where was I ${label.toLowerCase()}?`,
+        hint: fill(label === 'Selfish' ? D.selfish : label === 'Dishonest' ? D.dishonest : D.inconsiderate, ctx),
+        help: (cols['2'].help ?? []).map((h) => ({ term: h.term, meaning: fill(h.meaning, ctx) })),
+      };
+    }
+    case 'ticks':
+      return {
+        eyebrow: column('Arousing'),
+        question: 'Did I arouse jealousy, suspicion, or bitterness?',
+        hint: 'Tap everything that applies. Leave them all unticked if none do.',
+        help: (cols['3'].help ?? []).map((h) => ({ term: h.term, meaning: fill(h.meaning, ctx) })),
+        options: [
+          { value: 'jealousy', label: 'Jealousy' },
+          { value: 'suspicion', label: 'Suspicion' },
+          { value: 'bitterness', label: 'Bitterness' },
+        ],
+      };
+    case 'choice':
+      return { eyebrow: column('Selfish relation'), question: heading('5'), hint: cols['5'].hint, options: YES_NO };
+    default: {
+      const meditation = step.field === 'sexMeditationDone';
+      return {
+        eyebrow: column(meditation ? 'Sex Meditation' : 'Sex Prayer'),
+        question: meditation ? 'Say the Sex Meditation' : 'Say the Sex Prayer',
+        hint: 'Say it aloud or silently. You can mark it done, but you do not have to.',
+        prayer: fill(meditation ? SEX_MEDITATION : SEX_PRAYER, ctx),
+        doneLabel: meditation ? "I've said this meditation" : undefined,
+      };
+    }
+  }
+}
+
 /** The wording for a step: the single place that maps a step to what the person reads. */
 export function stepCopy(doc: InventoryDoc, step: Step): StepCopy {
-  // Fears and harms get their wording in the task that builds those screens.
+  if (step.inventory === 'fears') return fearCopyFor(doc, step);
+  if (step.inventory === 'harms') return harmCopyFor(doc, step);
   return resentmentCopyFor(doc, step);
 }
 

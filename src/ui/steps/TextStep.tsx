@@ -3,7 +3,7 @@ import { setField } from '../../core/edit';
 import { Definitions, HelpSheet } from '../HelpSheet';
 import type { StepProps } from './types';
 
-export function TextStep({ doc, step, copy, update }: StepProps) {
+export function TextStep({ doc, step, copy, update, describedBy }: StepProps) {
   const [sheet, setSheet] = useState(false);
   const entry = (doc[step.inventory] as unknown as Array<Record<string, unknown>>).find((e) => e.id === step.entryId);
   const stored = entry?.[step.field ?? ''];
@@ -11,6 +11,7 @@ export function TextStep({ doc, step, copy, update }: StepProps) {
     <>
       <textarea
         aria-labelledby="step-question"
+        aria-describedby={describedBy}
         rows={7}
         value={typeof stored === 'string' ? stored : ''}
         spellcheck={false}
