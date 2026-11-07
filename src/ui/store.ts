@@ -38,6 +38,22 @@ function readStorage(): Storage | null {
 }
 
 let state: AppState;
+/** Commits the add-field text of the step on screen, if any. One step at a time registers it. */
+let draftCommitter: (() => void) | null = null;
+
+/** The step on screen registers how to commit what is typed but not yet added. Returns how to unregister. */
+export function registerDraft(commit: () => void): () => void {
+  draftCommitter = commit;
+  return () => {
+    if (draftCommitter === commit) draftCommitter = null;
+  };
+}
+
+/** Commits any typed-but-not-added text, before the screen changes or the page is hidden. */
+export function flushDraft(): void {
+  draftCommitter?.();
+}
+
 let saver: Saver;
 const listeners = new Set<() => void>();
 
@@ -74,10 +90,19 @@ function start(): void {
       state = { ...state, loadProblem: PROBLEMS[code] ?? GENERIC_PROBLEM };
     }
   }
-  window.addEventListener('hashchange', () => set({ route: parseRoute(window.location.hash) }));
-  window.addEventListener('pagehide', () => void saver.flush().catch(() => undefined));
+  window.addEventListener('hashchange', () => {
+    flushDraft();
+    set({ route: parseRoute(window.location.hash) });
+  });
+  // The draft is committed first, so the flush below writes it.
+  window.addEventListener('pagehide', () => {
+    flushDraft();
+    void saver.flush().catch(() => undefined);
+  });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') void saver.flush().catch(() => undefined);
+    if (document.visibilityState !== 'hidden') return;
+    flushDraft();
+    void saver.flush().catch(() => undefined);
   });
 }
 
@@ -92,6 +117,7 @@ export async function setSaveMode(mode: SaveMode, options?: { overwriteStale?: b
 }
 
 function go(route: Route): void {
+  flushDraft();
   const hash = routeHash(route);
   if (window.location.hash === hash) set({ route });
   else window.location.hash = hash; // hashchange updates the state

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDoc, type InventoryDoc } from '../../src/core/doc';
 import { nextStep, stepsFor } from '../../src/core/flow';
-import { addCause, addEntry, markVisited, removeCause, removeEntry, setField } from '../../src/core/edit';
+import { addCause, addEntry, editCause, markVisited, removeCause, removeEntry, renameEntry, setField } from '../../src/core/edit';
 
 const god = { kind: 'god' as const, custom: '' };
 const visitAll = (doc: InventoryDoc, inv: 'resentments' | 'fears' | 'harms') =>
@@ -120,5 +120,32 @@ describe('setField', () => {
     const s = step(doc, 'resentments', `res:defect:${a}:selfish`);
     const out = removeEntry(doc, 'resentments', a);
     expect(setField(out, s, 'x')).toEqual(out);
+  });
+});
+
+describe('renaming', () => {
+  it('renameEntry changes only the name, keeping answers, causes and visited keys', () => {
+    const { doc, a, b } = twoPeople();
+    const withText = setField(doc, step(doc, 'resentments', `res:defect:${a}:selfish`), 'kept');
+    const out = renameEntry(withText, 'resentments', a, 'Anne');
+    expect(out.resentments[0]).toEqual({ ...withText.resentments[0], name: 'Anne' });
+    expect(out.resentments[1]).toEqual(withText.resentments[1]);
+    expect(out.visited).toEqual(withText.visited);
+    expect(out.resentments.map((r) => r.id)).toEqual([a, b]);
+  });
+  it('renameEntry sets the right field for fears and harms, and ignores an unknown id', () => {
+    let d = addEntry(addEntry(emptyDoc('alcohol', god), 'fears', 'dark'), 'harms', 'Cy');
+    d = renameEntry(renameEntry(d, 'fears', d.fears[0].id, 'heights'), 'harms', d.harms[0].id, 'Cyrus');
+    expect(d.fears[0].fear).toBe('heights');
+    expect(d.harms[0].who).toBe('Cyrus');
+    expect(renameEntry(d, 'fears', 'nope', 'x')).toEqual(d);
+  });
+  it('editCause changes the text and keeps its ticks and visited keys', () => {
+    const { doc, a } = twoPeople();
+    const cause = doc.resentments[0].causes[0];
+    const ticked = setField(doc, { ...step(doc, 'resentments', `res:affects:${a}:${cause.id}`), field: 'security' }, true);
+    const out = editCause(ticked, a, cause.id, 'fixed');
+    expect(out.resentments[0].causes[0]).toEqual({ ...ticked.resentments[0].causes[0], text: 'fixed' });
+    expect(out.visited).toEqual(ticked.visited);
   });
 });

@@ -318,3 +318,121 @@ test('nothing scrolls sideways at 320px, even with a very long unbroken name', a
   await expect(h1(page)).toContainText('WWWW')
   expect(await overflow()).toBeLessThanOrEqual(0)
 })
+
+function finishedDoc(): Partial<InventoryDoc> {
+  const entry = pat({ selfish: 'saved selfish' })
+  const base = docAt('prayer', {}, entry)
+  for (const f of ['selfish', 'dishonest', 'selfSeeking', 'frightened']) base.visited![`res:defect:${PAT}:${f}`] = true
+  return base
+}
+
+test('a finished inventory can be reviewed from the start and from the back', async ({ page }) => {
+  await startWithBrowserSave(page, finishedDoc())
+  await openResentments(page)
+  await expect(h1(page)).toHaveText("You've been through every resentment step")
+  await page.getByRole('button', { name: 'Back' }).click()
+  await expect(h1(page)).toHaveText('Where was I frightened?')
+  await page.getByRole('link', { name: site.name }).click()
+  await openResentments(page)
+
+  await page.getByRole('link', { name: 'Go through it from the start' }).click()
+  await expect(h1(page)).toHaveText('Before you start the resentment inventory')
+  for (const heading of [
+    'Before you start the resentment inventory',
+    "I'm resentful at:",
+    'What is your resentment at Pat about?',
+    'What did this affect?',
+    'Before column 4: study and prayer',
+    'Say the Resentment Prayer for Pat',
+  ]) {
+    await expect(h1(page)).toHaveText(heading)
+    await advance(page)
+  }
+  await expect(h1(page)).toHaveText('Where was I selfish?')
+  const box = page.getByRole('textbox')
+  await expect(box).toHaveValue('saved selfish')
+  await box.fill('saved selfish, changed')
+  await expect(box).toHaveValue('saved selfish, changed')
+})
+
+test('a name can be renamed without losing its answers', async ({ page }) => {
+  await startWithBrowserSave(page, finishedDoc())
+  await openResentments(page)
+  await page.getByRole('link', { name: 'Add another name' }).first().click()
+  await page.getByRole('button', { name: 'Edit Pat' }).click()
+  await page.getByLabel('Change Pat').fill('Patricia')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText('Patricia')
+  const stored = await page.evaluate(() => localStorage.getItem('step4-inventory'))
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('step4-inventory'))).toContain('Patricia')
+  expect(stored).toContain('saved selfish')
+})
+
+test('a cause can be edited without losing what was ticked', async ({ page }) => {
+  const entry = pat()
+  entry.causes[0].affects.security = true
+  await startWithBrowserSave(page, docAt('causes', {}, entry))
+  await page.goto('/#/step/resentments/' + encodeURIComponent(`res:causes:${PAT}`))
+  await page.getByRole('button', { name: 'Edit Lied to me' }).click()
+  await page.getByLabel('Change Lied to me').fill('Lied to my face')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('list', { name: 'Causes so far' })).toContainText('Lied to my face')
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('step4-inventory'))).toContain('Lied to my face')
+  const stored = JSON.parse((await page.evaluate(() => localStorage.getItem('step4-inventory'))) as string)
+  expect(stored.resentments[0].causes[0].affects.security).toBe(true)
+})
+
+const stored = (page: Page) => page.evaluate(() => localStorage.getItem('step4-inventory'))
+
+test('a name typed but not added is kept when going Back', async ({ page }) => {
+  await startWithBrowserSave(page, { visited: { 'res:intro': true } })
+  await openResentments(page)
+  await page.getByLabel('A person, institution, or principle').fill('Dana')
+  await page.getByRole('button', { name: 'Back' }).click()
+  await expect(h1(page)).toHaveText('Before you start the resentment inventory')
+  await expect.poll(() => stored(page)).toContain('Dana')
+  await advance(page)
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText('Dana')
+  await expect(page.getByLabel('A person, institution, or principle')).toHaveValue('')
+})
+
+test('a cause typed but not added is kept when adding another name', async ({ page }) => {
+  await startWithBrowserSave(page, { ...docAt('causes'), visited: { 'res:intro': true, 'res:list': true } })
+  await page.goto('/#/step/resentments/' + encodeURIComponent(`res:causes:${PAT}`))
+  await page.getByLabel('A cause').fill('Late again')
+  await page.getByRole('link', { name: 'Add another name' }).click()
+  await expect(h1(page)).toHaveText("I'm resentful at:")
+  await expect.poll(() => stored(page)).toContain('Late again')
+})
+
+test('a name typed but not added is kept when the page is hidden, and after reload', async ({ page }) => {
+  await startWithBrowserSave(page, { visited: { 'res:intro': true } })
+  await openResentments(page)
+  await page.getByLabel('A person, institution, or principle').fill('Dana')
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event('visibilitychange'))
+    window.dispatchEvent(new Event('pagehide'))
+  })
+  await expect.poll(() => stored(page), { timeout: 500 }).toContain('Dana')
+  await page.reload()
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText('Dana')
+})
+
+test('Next with a name typed goes straight to that name, with no correcting redirect', async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(window as unknown as { hashChanges: number }).hashChanges = 0
+    window.addEventListener('hashchange', () => { (window as unknown as { hashChanges: number }).hashChanges++ })
+  })
+  await startWithBrowserSave(page, { visited: { 'res:intro': true } })
+  await openResentments(page) // opening redirects once to the step's own address; count from after that
+  await expect(page).toHaveURL(/res%3Alist$/)
+  await expect(h1(page)).toHaveText("I'm resentful at:")
+  await page.evaluate(() => { (window as unknown as { hashChanges: number }).hashChanges = 0 })
+  await page.getByLabel('A person, institution, or principle').fill('Dana')
+  await advance(page)
+  await expect(h1(page)).toHaveText('What is your resentment at Dana about?')
+  await expect.poll(() => stored(page)).toContain('Dana')
+  const id = JSON.parse((await stored(page)) as string).resentments[0].id as string
+  expect(page.url()).toContain(`res%3Acauses%3A${id}`)
+  expect(await page.evaluate(() => (window as unknown as { hashChanges: number }).hashChanges)).toBe(1)
+})

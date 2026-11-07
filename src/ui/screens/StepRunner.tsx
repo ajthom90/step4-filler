@@ -10,10 +10,10 @@ import { ListStep } from '../steps/ListStep';
 import { PrayerStep } from '../steps/PrayerStep';
 import { TextStep } from '../steps/TextStep';
 import { TicksStep } from '../steps/TicksStep';
-import type { DraftCommit, StepProps } from '../steps/types';
+import type { StepProps } from '../steps/types';
 import { routeHash } from '../router';
-import { entryName, stepCopy, stepLabel } from '../stepCopy';
-import { useApp } from '../store';
+import { entryName, listEntries, stepCopy, stepLabel } from '../stepCopy';
+import { flushDraft, useApp } from '../store';
 
 const BODIES: Record<Step['kind'], FunctionComponent<StepProps>> = {
   intro: IntroStep,
@@ -43,9 +43,11 @@ function destination(doc: InventoryDoc, step: Step, forward: boolean): Step | nu
 }
 
 function Finished({ inventory }: { inventory: InventoryId }) {
-  const { state } = useApp();
+  const { state, go } = useApp();
   const doc = state.doc!;
   const open = blanks(doc, inventory);
+  const steps = stepsFor(doc, inventory);
+  const last = steps[steps.length - 1];
   return (
     <>
       <h1 tabIndex={-1} id="step-question">You've been through every {FINISHED_NOUN[inventory]} step</h1>
@@ -68,6 +70,9 @@ function Finished({ inventory }: { inventory: InventoryId }) {
         <li><a href={routeHash(stepRoute(inventory, stepsFor(doc, inventory)[0].key))}>Go through it from the start</a></li>
         <li><a href="#/home">Back to your inventory</a></li>
       </ul>
+      <div class="stepnav">
+        <button type="button" onClick={() => go(stepRoute(inventory, last.key))}>Back</button>
+      </div>
     </>
   );
 }
@@ -75,7 +80,6 @@ function Finished({ inventory }: { inventory: InventoryId }) {
 export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; stepKey?: string }) {
   const { state, update, go } = useApp();
   const doc = state.doc!;
-  const draft = useRef<DraftCommit['current']>(null);
 
   const requested = stepKey === undefined ? undefined : stepsFor(doc, inventory).find((s) => s.key === stepKey);
   const step = requested ?? nextStep(doc, inventory) ?? undefined;
@@ -87,8 +91,8 @@ export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; ste
   }, [requested, wanted]);
 
   // A step already passed when it was opened is being reviewed, not worked through.
-  const firstSeen = useRef<{ key: string; fresh: boolean } | null>(null);
-  if (step && firstSeen.current?.key !== step.key) firstSeen.current = { key: step.key, fresh: !doc.visited[step.key] };
+  const firstSeen = useRef<{ key: string; fresh: boolean; entries: number } | null>(null);
+  if (step && firstSeen.current?.key !== step.key) firstSeen.current = { key: step.key, fresh: !doc.visited[step.key], entries: listEntries(doc, inventory).length };
 
   if (!step) return <Finished inventory={inventory} />;
 
@@ -101,12 +105,14 @@ export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; ste
   const before = stepBefore(doc, inventory, step.key);
 
   const next = () => {
-    const finish = (d: InventoryDoc) => markVisited(draft.current ? draft.current(d) : d, step.key);
-    const after = finish(doc);
-    const forward = step.kind === 'list' || (firstSeen.current?.fresh ?? false);
-    const to = destination(after, step, forward);
-    update(finish);
-    go(stepRoute(inventory, to?.key));
+    flushDraft(); // anything typed but not added is added first
+    let after!: InventoryDoc;
+    update((d) => (after = markVisited(d, step.key)));
+    const seen = firstSeen.current;
+    // From the list, move on past what is unfinished only if names were added or work remains; otherwise just step forward.
+    const gained = listEntries(after, inventory).length > (seen?.entries ?? 0);
+    const forward = (seen?.fresh ?? false) || (step.kind === 'list' && (gained || nextStep(after, inventory) !== null));
+    go(stepRoute(inventory, destination(after, step, forward)?.key));
   };
   const skipping = (step.kind === 'text' || step.kind === 'choice') && isBlank(doc, step);
   const nextLabel = step.kind === 'list' ? "That's everyone for now" : skipping ? 'Skip for now' : 'Next';
@@ -118,7 +124,7 @@ export function StepRunner({ inventory, stepKey }: { inventory: InventoryId; ste
       {showWho && <p class="who" data-testid="who">{who}</p>}
       <h1 tabIndex={-1} id="step-question">{copy.question}</h1>
       {step.kind !== 'intro' && <p class="hint">{copy.hint}</p>}
-      <Body key={step.key} doc={doc} step={step} copy={copy} update={update} draft={draft} />
+      <Body key={step.key} doc={doc} step={step} copy={copy} update={update} />
       {step.kind !== 'list' && step.kind !== 'intro' && (
         <p class="side">
           <a href={routeHash(stepRoute(inventory, stepsFor(doc, inventory).find((s) => s.kind === 'list')?.key))}>Add another name</a>

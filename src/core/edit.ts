@@ -81,3 +81,19 @@ export function setField(doc: InventoryDoc, step: Step, value: string | boolean 
   }
   return { ...doc, [step.inventory]: patch(doc[step.inventory] as Array<{ id: string }>, (e) => ({ ...e, [field]: value })) } as InventoryDoc;
 }
+
+const NAME_FIELD: Record<InventoryId, string> = { resentments: 'name', fears: 'fear', harms: 'who' };
+
+/** Changes what an entry is called, keeping its id, answers and visited steps. */
+export function renameEntry(doc: InventoryDoc, inv: InventoryId, entryId: string, name: string): InventoryDoc {
+  const field = NAME_FIELD[inv];
+  return { ...doc, [inv]: (doc[inv] as Array<{ id: string }>).map((e) => (e.id === entryId ? { ...e, [field]: name } : e)) } as InventoryDoc;
+}
+
+/** Changes a cause's wording, keeping its id, its ticks and its visited steps. */
+export function editCause(doc: InventoryDoc, entryId: string, causeId: string, text: string): InventoryDoc {
+  return {
+    ...doc,
+    resentments: doc.resentments.map((r) => (r.id === entryId ? { ...r, causes: r.causes.map((c) => (c.id === causeId ? { ...c, text } : c)) } : r)),
+  };
+}
