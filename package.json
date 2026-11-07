@@ -1,0 +1,39 @@
+{
+  "name": "step4-inventory",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "build": "vite build",
+    "test:e2e": "vite build && playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajthom90/step4-filler.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ajthom90/step4-filler/issues"
+  },
+  "homepage": "https://github.com/ajthom90/step4-filler#readme",
+  "dependencies": {
+    "preact": "11.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@preact/preset-vite": "2.10.6",
+    "@types/node": "26.6.6",
+    "typescript": "5.9.3",
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
+  },
+  "private": "true",
+  "type": "module"
+}
