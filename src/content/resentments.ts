@@ -173,3 +173,28 @@ export const copy: {
     { text: 'People who ended a relationship with me', only: ['sexLove'] },
   ],
 };
+
+/** Shown on the first line of every inventory's opening screen, before its page range. */
+export const PAGES_LEAD = 'Pages to study first:';
+
+/** Prayer and meditation screens, all three inventories. */
+export const PRAYER_HINT = 'Say it aloud or silently. You can mark it done, but you do not have to.';
+export const PRAYER_DONE_LABEL = "I've said this prayer";
+
+/** Wording written for the resentment screens (not taken from the handout). `{name}` is filled in by fill(). */
+export const screens = {
+  intro: { eyebrow: 'Resentments · Before you begin', question: 'Before you start the resentment inventory' },
+  study: { eyebrow: 'Before column 4', question: 'Before column 4: study and prayer' },
+  list: { eyebrow: 'Who or what', addLabel: 'A person, institution, or principle' },
+  causes: { question: 'What is your resentment at {name} about?', addLabel: 'A cause' },
+  ticks: { eyebrow: 'Affects my…', question: 'What did this affect?', hintSuffix: ' Tap everything that applies.' },
+  prayer: { eyebrow: 'Prayer', question: 'Say the Resentment Prayer for {name}' },
+  defects: {
+    eyebrow: 'Core character defects',
+    helpTerm: 'From page 67',
+    selfish: { question: 'Where was I selfish?', label: 'Selfish', hint: 'Leave the other person out of it. Where were you wanting things your way?' },
+    dishonest: { question: 'Where was I dishonest?', label: 'Dishonest', hint: 'By what you said or did, and by what you left unsaid. Include what you told yourself.' },
+    selfSeeking: { question: 'Where was I self-seeking?', label: 'Self-Seeking', hint: 'What did you do, or not do, to get what you wanted or to manage your fear?' },
+    frightened: { question: 'Where was I frightened?', label: 'Frightened', hint: 'What were you afraid of: not getting your way, or losing something you have?' },
+  },
+} as const;

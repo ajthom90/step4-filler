@@ -11,7 +11,7 @@ import { PrayerStep } from '../steps/PrayerStep';
 import { TextStep } from '../steps/TextStep';
 import { TicksStep } from '../steps/TicksStep';
 import type { StepProps } from '../steps/types';
-import { EARNEST_PRAYERS } from '../../content/harms';
+import { EARNEST_PRAYERS, screens as harmScreens } from '../../content/harms';
 import { HelpSheet } from '../HelpSheet';
 import { routeHash } from '../router';
 import { entryName, listEntries, stepCopy, stepLabel } from '../stepCopy';
@@ -49,8 +49,8 @@ function EarnestPrayers() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <p class="side"><button type="button" onClick={() => setOpen(true)}>Earnest prayers (page 70)</button></p>
-      <HelpSheet open={open} title="Earnest prayers" onClose={() => setOpen(false)}>
+      <p class="side"><button type="button" onClick={() => setOpen(true)}>{harmScreens.earnest.button}</button></p>
+      <HelpSheet open={open} title={harmScreens.earnest.title} onClose={() => setOpen(false)}>
         <p>{EARNEST_PRAYERS.intro}</p>
         <ul>
           {EARNEST_PRAYERS.items.map((item) => <li key={item}>{item}</li>)}

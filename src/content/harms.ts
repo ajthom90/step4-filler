@@ -84,3 +84,32 @@ export const copy: {
     { text: 'People I lied to about {behavior}' },
   ],
 };
+
+/** Column 3 choices. */
+export const AROUSE_OPTIONS = [
+  { key: 'jealousy', label: 'Jealousy' },
+  { key: 'suspicion', label: 'Suspicion' },
+  { key: 'bitterness', label: 'Bitterness' },
+] as const;
+
+/** Wording written for the sex conduct and harms screens (not taken from the handout). */
+export const screens = {
+  intro: { eyebrow: 'Sex conduct and harms · Before you begin', question: 'Before you start the sex conduct and harms inventory' },
+  list: { eyebrow: 'Whom I hurt', addLabel: 'A person or place' },
+  where: {
+    eyebrow: 'Selfish, dishonest, inconsiderate',
+    selfish: { question: 'Where was I selfish?', hint: D.selfish },
+    dishonest: { question: 'Where was I dishonest?', hint: D.dishonest },
+    inconsiderate: { question: 'Where was I inconsiderate?', hint: D.inconsiderate },
+  },
+  arouse: {
+    eyebrow: 'Arousing',
+    question: 'Did I arouse jealousy, suspicion, or bitterness?',
+    hint: 'Tap everything that applies. Leave them all unticked if none do.',
+  },
+  fault: { eyebrow: 'At fault', hint: 'Say what you did, and what you would do now.' },
+  relation: { eyebrow: 'Selfish relation' },
+  sexPrayer: { eyebrow: 'Sex Prayer', question: 'Say the Sex Prayer' },
+  meditation: { eyebrow: 'Sex Meditation', question: 'Say the Sex Meditation', doneLabel: "I've said this meditation" },
+  earnest: { button: 'Earnest prayers (page 70)', title: 'Earnest prayers' },
+} as const;

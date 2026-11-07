@@ -62,3 +62,14 @@ export const copy: {
     { text: 'Fear of being found out', only: ['sexLove'] },
   ],
 };
+
+/** Wording written for the fear screens (not taken from the handout). */
+export const screens = {
+  intro: { eyebrow: 'Fears · Before you begin', question: 'Before you start the fear inventory' },
+  list: { eyebrow: 'Whom or what', addLabel: 'A fear' },
+  why: { eyebrow: 'Why', hint: 'Say what is behind it, as plainly as you can.' },
+  trust: { eyebrow: 'Trust and reliance' },
+  worked: { eyebrow: 'Self reliance' },
+  prayer: { eyebrow: 'Prayer', question: 'Say the Fear Prayer' },
+  be: { eyebrow: 'What would you have me be' },
+} as const;

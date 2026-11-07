@@ -106,6 +106,58 @@ The p. 6 lies/truth, self-seeking and fear lists are part of the help for column
 
 The checklist has 121 rows, counted from p. 14 (41 + 41 + 39).
 
+## 5a. Screen wording written fresh for the step screens
+
+Where the wording lives: `src/content/resentments.ts`, `fears.ts` and `harms.ts` (look for `screens`). On each screen the eyebrow reads "Column N of M · " followed by the label shown here. A heading in the "Handout heading" column became a question or was reworded; all others are new.
+
+**Shared**
+
+| Where | Wording | Notes |
+| --- | --- | --- |
+| Every inventory's opening screen | "Pages to study first: pages 63 to 67." (and "pages 67 and 68", "pages 68 to 70"), then the handout's instructions unchanged | New lead line and page numbers taken from the instructions |
+| Every prayer and meditation screen | "Say it aloud or silently. You can mark it done, but you do not have to." | New |
+| Tick box on prayer screens | "I've said this prayer" ("I've said this meditation" for the Sex Meditation) | New; the form says "Completed ... prayer?" |
+
+**Resentments**
+
+| Where | Wording | Handout heading or note |
+| --- | --- | --- |
+| Opening screen | "Resentments · Before you begin"; "Before you start the resentment inventory" | New |
+| Column 1 | Label "Who or what"; field label "A person, institution, or principle" | Heading "I'm resentful at:" is unchanged |
+| Column 2 | Question "What is your resentment at (name) about?"; field label "A cause" | Handout heading "The causes:" became a question |
+| Column 3 | Label "Affects my…"; question "What did this affect?"; hint "Do all six for each cause. Tap everything that applies." | Handout heading "Affects my:" became a question; second sentence of the hint is new |
+| Before column 4 | "Before column 4"; "Before column 4: study and prayer"; the p. 2 note is the handout's, with the blanks filled in | Title is new |
+| Prayer | "Prayer"; "Say the Resentment Prayer for (name)" | New; the prayer itself is the handout's |
+| Column 4 | Label "Core character defects"; questions "Where was I selfish?", "Where was I dishonest?", "Where was I self-seeking?", "Where was I frightened?" | Handout heading "Core Character Defects" became four questions |
+| Column 4 hints | Selfish: "Leave the other person out of it. Where were you wanting things your way?" Dishonest: "By what you said or did, and by what you left unsaid. Include what you told yourself." Self-Seeking: "What did you do, or not do, to get what you wanted or to manage your fear?" Frightened: "What were you afraid of: not getting your way, or losing something you have?" | New |
+| Column 4 help | The first entry is titled "From page 67" and quotes the handout | Title is new |
+
+**Fears**
+
+| Where | Wording | Handout heading or note |
+| --- | --- | --- |
+| Opening screen | "Fears · Before you begin"; "Before you start the fear inventory" | New |
+| Column 1 | Label "Whom or what"; field label "A fear" | Heading "I'm fearful of:" unchanged |
+| Column 2 | Label "Why"; hint "Say what is behind it, as plainly as you can." | The handout has no hint; heading unchanged |
+| Column 3 | Label "Trust and reliance"; question "Where was my trust & reliance?"; choices "Infinite (God word)" and "My Finite Self" | Handout heading and choices, with the God word |
+| Column 4 | Label "Self reliance"; question "Did self reliance work?"; choices "Yes", "No" | Handout heading; the hint is the handout's "Yes or No" |
+| Column 5 | Label "Prayer"; "Say the Fear Prayer" | Handout heading "Fear Prayer" became an instruction |
+| Column 6 | Label "What would you have me be"; question "What would (God word) have you be?" | Handout heading, with the God word |
+
+**Sex conduct and harms**
+
+| Where | Wording | Handout heading or note |
+| --- | --- | --- |
+| Opening screen | "Sex conduct and harms · Before you begin"; "Before you start the sex conduct and harms inventory" | New |
+| Column 1 | Label "Whom I hurt"; field label "A person or place"; question "Whom did I hurt?" | Heading unchanged |
+| Column 2 | Label "Selfish, dishonest, inconsiderate"; questions "Where was I selfish?", "Where was I dishonest?", "Where was I inconsiderate?"; each shows the handout's definition as its hint | Handout heading "Where was I" plus "Selfish, Dishonest and Inconsiderate" became three questions |
+| Column 3 | Label "Arousing"; question "Did I arouse jealousy, suspicion, or bitterness?"; hint "Tap everything that applies. Leave them all unticked if none do."; boxes "Jealousy", "Suspicion", "Bitterness" | Handout heading "Did I arouse:" became a full question; hint is new |
+| Column 4 | Label "At fault"; question "Where was I at fault, what should I have done instead?"; hint "Say what you did, and what you would do now." | The handout has no hint |
+| Column 5 | Label "Selfish relation"; question "Was each relation selfish?"; choices "Yes", "No" | Handout heading unchanged |
+| Column 6 | Label "Sex Prayer"; "Say the Sex Prayer" | Handout heading "Sex Prayer" became an instruction |
+| Column 7 | Label "Sex Meditation"; "Say the Sex Meditation" | Handout heading "Sex Meditation" became an instruction |
+| Every step of this inventory | Button "Earnest prayers (page 70)" opening a sheet titled "Earnest prayers" | New labels; the sheet text is the handout's p. 70 text, verbatim |
+
 ## 6. Shared wording for the owner's review
 
 Privacy statement (from the design, near the top of the privacy page):

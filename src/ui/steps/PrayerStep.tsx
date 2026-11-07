@@ -1,3 +1,4 @@
+import { PRAYER_DONE_LABEL } from '../../content/resentments';
 import { setField } from '../../core/edit';
 import type { StepProps } from './types';
 
@@ -14,7 +15,7 @@ export function PrayerStep({ doc, step, copy, update, describedBy }: StepProps) 
           checked={entry?.[step.field ?? ''] === true}
           onChange={(e) => update((d) => setField(d, step, (e.currentTarget as HTMLInputElement).checked))}
         />
-        <span>{copy.doneLabel ?? "I've said this prayer"}</span>
+        <span>{copy.doneLabel ?? PRAYER_DONE_LABEL}</span>
       </label>
     </>
   );
