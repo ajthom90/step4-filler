@@ -2,7 +2,11 @@ import type { InventoryDoc } from './doc';
 import { FileError, validateDoc } from './validate';
 
 export const KDF_ITERATIONS = 600_000;
-const MIN_ITERATIONS = 100_000;
+/**
+ * The lowest count a file may name. Equal to KDF_ITERATIONS for now, since no file was ever written with
+ * fewer. If KDF_ITERATIONS rises, keep this at the old count so existing files still open (and are re-keyed).
+ */
+const MIN_ITERATIONS = KDF_ITERATIONS;
 const MAX_ITERATIONS = 10_000_000;
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
@@ -100,8 +104,10 @@ export function checkEnvelope(value: unknown): Envelope & { decoded: Decoded } {
 }
 
 async function deriveKey(password: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
+  // The same password can arrive as different code points (composed or decomposed accents), depending on
+  // the device or keyboard. Normalizing means it always derives the same key.
   const material = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey'],
+    'raw', new TextEncoder().encode(password.normalize('NFC')), 'PBKDF2', false, ['deriveKey'],
   );
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations },
@@ -161,7 +167,8 @@ export async function decrypt(
     throw new FileError('corrupt', 'Decrypted data is not valid JSON');
   }
   const doc = validateDoc(parsed);
-  // Older, weaker files stay readable, but the next save must use the current count.
+  // Unreachable while MIN_ITERATIONS equals KDF_ITERATIONS. Kept so that raising KDF_ITERATIONS later leaves
+  // older files readable, with the next save at the current count.
   if (decoded.iterations < KDF_ITERATIONS) return { doc, session: await createKey(password) };
   return { doc, session: { key, salt: decoded.salt, iterations: decoded.iterations } };
 }

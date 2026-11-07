@@ -89,11 +89,11 @@ describe('crypto', () => {
     expect((await makeEnvelope()).iterations).toBe(600_000);
   });
 
-  it('rejects iteration counts outside 100,000 to 10,000,000 as corrupt, before any key derivation', async () => {
+  it('rejects iteration counts outside 600,000 to 10,000,000 as corrupt, before any key derivation', async () => {
     const env = await makeEnvelope();
     const spy = vi.spyOn(crypto.subtle, 'importKey');
     try {
-      for (const iterations of [99_999, 10_000_001, 0, -1, 1.5, Number.NaN, Infinity]) {
+      for (const iterations of [599_999, 10_000_001, 0, -1, 1.5, Number.NaN, Infinity]) {
         await expectFileError(decrypt({ ...env, iterations }, PASSWORD), 'corrupt');
       }
       expect(spy).not.toHaveBeenCalled();
@@ -157,28 +157,27 @@ describe('crypto', () => {
     await expectFileError(decrypt(big, PASSWORD), 'wrong-password');
   });
 
-  it('reads a 100,000-iteration file but re-keys at 600,000 for the next save', async () => {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(PASSWORD), 'PBKDF2', false, ['deriveKey']);
-    const weak = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100_000 }, material,
-      { name: 'AES-GCM', length: 256 }, false, ['encrypt'],
-    );
-    const ct = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode('step4-inventory-encrypted:1') },
-      weak, new TextEncoder().encode(JSON.stringify(sampleDoc())),
-    );
-    const old: Envelope = {
-      format: 'step4-inventory-encrypted', version: 1, kdf: 'PBKDF2-SHA-256', iterations: 100_000,
-      salt: Buffer.from(salt).toString('base64'), iv: Buffer.from(iv).toString('base64'),
-      ciphertext: Buffer.from(ct).toString('base64'),
-    };
-    const { doc, session } = await decrypt(old, PASSWORD);
-    expect(doc).toEqual(sampleDoc());
-    expect(session.iterations).toBe(KDF_ITERATIONS);
-    expect((await encrypt(doc, session)).iterations).toBe(600_000);
-    expect(Buffer.from(session.salt).equals(Buffer.from(salt))).toBe(false);
+  it('refuses a file under 600,000 iterations as corrupt, before any key derivation', async () => {
+    const env = await makeEnvelope();
+    const spy = vi.spyOn(crypto.subtle, 'importKey');
+    try {
+      for (const iterations of [100_000, 599_999]) {
+        await expectFileError(decrypt({ ...env, iterations }, PASSWORD), 'corrupt');
+      }
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('opens a file whatever Unicode form the password was typed in', async () => {
+    const nfc = 'caf\u00e9 cr\u00e8me br\u00fbl\u00e9e';
+    const nfd = nfc.normalize('NFD');
+    expect(nfd).not.toBe(nfc);
+    const madeNfd = await encrypt(sampleDoc(), await createKey(nfd));
+    expect((await decrypt(madeNfd, nfc)).doc).toEqual(sampleDoc());
+    const madeNfc = await encrypt(sampleDoc(), await createKey(nfc));
+    expect((await decrypt(madeNfc, nfd)).doc).toEqual(sampleDoc());
   });
 
   it('a decrypted payload that is not a valid doc throws a FileError', async () => {
