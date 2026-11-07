@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { site } from '../../site.config';
+import { saveCopy } from '../content/copy';
 import { Footer } from './Footer';
 import { Checklist } from './screens/Checklist';
 import { Pledge } from './screens/Pledge';
@@ -82,9 +83,7 @@ export function App() {
         {state.doc && <SaveStatus />}
       </header>
       {state.saveStatus === 'stale' && (
-        <p class="notice alert" role="alert">
-          Another tab saved a newer version of this inventory. Reload this page to see it. This page will not overwrite it.
-        </p>
+        <p class="notice alert" role="alert">{saveCopy.staleBanner}</p>
       )}
       <SavePrompt />
       <main ref={main}>

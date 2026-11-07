@@ -19,8 +19,8 @@ export function Unlock() {
     try {
       const { doc, session } = await decrypt(envelope, password);
       setPassword('');
-      // If keeping it saved fails, the inventory is open and the header says it could not be saved.
-      await unlockWith(doc, session).catch(() => undefined);
+      // If another tab already changed the save, the inventory opens and the header says so.
+      unlockWith(doc, session);
     } catch (err) {
       setError(err instanceof FileError && err.code === 'wrong-password' ? saveCopy.unlockWrong : saveCopy.unlockProblem);
       setBusy(false);
@@ -39,12 +39,12 @@ export function Unlock() {
         >
           <p>{saveCopy.unlockText}</p>
           <label class="field">
-            <span>Password</span>
+            <span>{saveCopy.labels.password}</span>
             <input type="password" value={password} autocomplete="current-password" onInput={(e) => setPassword((e.currentTarget as HTMLInputElement).value)} />
           </label>
           {error && <p class="notice alert" role="alert">{error}</p>}
           <p>
-            <button type="submit" class="primary" disabled={busy}>{busy ? saveCopy.working : 'Unlock'}</button>
+            <button type="submit" class="primary" disabled={busy}>{busy ? saveCopy.working : saveCopy.labels.unlock}</button>
           </p>
         </form>
       ) : (

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Envelope, SessionKey } from '../core/crypto';
 import type { InventoryDoc } from '../core/doc';
-import { parseSaved } from '../core/fileformat';
 import { Saver, type SaveMode, type SaveStatus } from '../core/saver';
 import { FileError } from '../core/validate';
+import { backupFileName, parseSaved } from '../core/fileformat';
+import { downloadText } from './download';
 import { parseRoute, routeHash, type Route } from './router';
 
 export interface AppState {
@@ -45,6 +46,8 @@ function readStorage(): Storage | null {
 }
 
 let state: AppState;
+/** The inventory as last written to the browser save, to tell what a stale tab would lose. */
+let savedDoc: InventoryDoc | null = null;
 /** The document changed since the last committed edit was counted. */
 let dirty = false;
 /** Commits the add-field text of the step on screen, if any. One step at a time registers it. */
@@ -72,7 +75,10 @@ function set(patch: Partial<AppState>): void {
 }
 
 function start(): void {
-  saver = new Saver(readStorage(), (saveStatus) => set({ saveStatus }));
+  saver = new Saver(readStorage(), (saveStatus) => {
+    if (saveStatus === 'saved') savedDoc = state.doc;
+    set({ saveStatus });
+  });
   state = {
     doc: null,
     route: parseRoute(window.location.hash),
@@ -94,8 +100,8 @@ function start(): void {
         state = { ...state, pendingEnvelope: parsed.envelope, route: { name: 'unlock' } };
       } else {
         state = { ...state, doc: parsed.doc, cleanDoc: parsed.doc };
-        // loadRaw reset the mode; writing resumes only through setMode.
-        setSaveMode({ kind: 'browser-plain' }).catch(() => undefined); // the failure shows through saveStatus
+        // loadRaw reset the mode. Resuming writes nothing, so another tab on the same save stays current.
+        resumeSaving({ kind: 'browser-plain' });
       }
     } catch (err) {
       const code = err instanceof FileError ? err.code : '';
@@ -126,6 +132,16 @@ function start(): void {
     flushDraft();
     void saver.flush().catch(() => undefined);
   });
+}
+
+/** Starts autosaving to the save that was just read, without rewriting it. A stale save stays unwritten and says so. */
+function resumeSaving(mode: SaveMode): void {
+  try {
+    saver.resume(mode);
+    state = { ...state, mode };
+  } catch {
+    // Stale: the status already says so, and only an explicit replace can write.
+  }
 }
 
 /**
@@ -176,7 +192,25 @@ function hasUnsavedWork(): boolean {
   const { doc, mode, saveStatus, cleanDoc } = state;
   if (!doc) return false;
   if (mode.kind === 'none') return doc !== cleanDoc;
+  // A stale tab never writes, so anything changed here since the last save is lost on leaving.
+  if (saveStatus === 'stale') return doc !== savedDoc;
   return saveStatus === 'unsaved' || saveStatus === 'saving' || saveStatus === 'failed';
+}
+
+/** In a stale tab, whether this page holds changes that the save does not. */
+export function hasStaleEdits(): boolean {
+  return state.saveStatus === 'stale' && state.doc !== savedDoc;
+}
+
+/** Downloads the inventory as a file, under `session` if given, and returns the file name. */
+export async function downloadBackup(session?: SessionKey): Promise<string> {
+  const doc = state.doc;
+  if (!doc) throw new Error('There is no inventory to download');
+  const text = await saver.fileContents(doc, session);
+  const name = backupFileName(new Date());
+  downloadText(name, text);
+  markDownloaded(doc);
+  return name;
 }
 
 /** A downloaded file now matches this version of the inventory. */
@@ -188,11 +222,16 @@ export function markDownloaded(doc: InventoryDoc): void {
  * Clears the inventory and the key from memory. The latest changes are written first, and if
  * they cannot be, nothing is cleared and this rejects, so typed text is never dropped silently.
  */
-async function lock(): Promise<void> {
+async function lock(options?: { discardStale?: boolean }): Promise<void> {
   if (state.mode.kind !== 'browser-encrypted' || !state.doc) throw new Error('Lock needs a password-protected browser save');
-  flushDraft();
-  await saver.flush();
-  if (state.saveStatus !== 'saved') throw new Error('The latest changes are not saved');
+  if (state.saveStatus === 'stale') {
+    // Nothing can be written from a stale tab, so the caller must have said the changes may go.
+    if (hasStaleEdits() && !options?.discardStale) throw new Error('Changes on this page are not in the save');
+  } else {
+    flushDraft();
+    await saver.flush();
+    if (state.saveStatus !== 'saved') throw new Error('The latest changes are not saved');
+  }
   saver.lock();
   let pendingEnvelope: Envelope | null = null;
   try {
@@ -209,21 +248,23 @@ async function lock(): Promise<void> {
 }
 
 /** Opens the inventory an unlocked save held, and keeps saving it under the same password. */
-export async function unlockWith(doc: InventoryDoc, session: SessionKey): Promise<void> {
+export function unlockWith(doc: InventoryDoc, session: SessionKey): void {
   const wanted = parseRoute(window.location.hash);
   const route: Route = wanted.name === 'unlock' ? { name: 'home' } : wanted;
   dirty = false;
+  savedDoc = doc;
   set({ doc, pendingEnvelope: null, locked: false, cleanDoc: doc, hasFile: false, editsSincePrompt: 0, promptDismissed: false, route });
   if (wanted.name === 'unlock') go(route);
-  // loadRaw reset the mode; the failure shows through saveStatus.
-  await setSaveMode({ kind: 'browser-encrypted', session });
+  // The save was just read; resuming leaves its bytes untouched, and a stale one stays unwritten.
+  resumeSaving({ kind: 'browser-encrypted', session });
+  set({ mode: state.mode });
 }
 
 /**
  * Replaces what is open with an inventory read from a file. A browser save already in use
  * keeps saving, now holding the opened inventory; otherwise the file is the only copy.
  */
-export async function openDocument(doc: InventoryDoc): Promise<void> {
+export async function openDocument(doc: InventoryDoc, fileSession?: SessionKey): Promise<void> {
   const previous = state.mode;
   dirty = false;
   set({
@@ -231,7 +272,10 @@ export async function openDocument(doc: InventoryDoc): Promise<void> {
     cleanDoc: doc, hasFile: true, editsSincePrompt: 0, promptDismissed: false,
   });
   go({ name: 'home' });
-  if (previous.kind !== 'none') await setSaveMode(previous);
+  if (previous.kind === 'none') return;
+  // A readable browser save never receives a password file's contents: the stronger protection wins.
+  if (previous.kind === 'browser-plain' && fileSession) await setSaveMode({ kind: 'browser-encrypted', session: fileSession });
+  else await setSaveMode(previous);
 }
 
 /**
@@ -244,6 +288,8 @@ export function eraseBrowserData(keepOpen: boolean): boolean {
   // The saver stopped saving either way, so the screen must say so.
   set({ mode: { kind: 'none' }, saveStatus: 'unsaved' });
   if (stillThere) return false;
+  // With no file copy, the deleted save was the only one: leaving must warn.
+  if (keepOpen && !state.hasFile) set({ cleanDoc: null });
   if (!keepOpen) {
     dirty = false;
     set({

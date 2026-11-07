@@ -58,6 +58,12 @@ async function saveInBrowser(page: Page, how: 'plain' | 'password') {
   }
 }
 
+const leaving = (page: Page) => page.evaluate(() => {
+  const event = new Event('beforeunload', { cancelable: true })
+  window.dispatchEvent(event)
+  return event.defaultPrevented
+})
+
 const prompt = (page: Page) => page.getByRole('region', { name: saveCopy.promptHeading })
 
 test('prompts after the third edit, and storage is empty until a choice is made', async ({ page }) => {
@@ -305,24 +311,19 @@ test('bad files are rejected with a clear message and data is unchanged', async 
 })
 
 test('file-only use warns before leaving and shows the unsaved indicator', async ({ page }) => {
-  const leaving = () => page.evaluate(() => {
-    const event = new Event('beforeunload', { cancelable: true })
-    window.dispatchEvent(event)
-    return event.defaultPrevented
-  })
   await begin(page)
-  expect(await leaving()).toBe(false) // nothing to lose yet
+  expect(await leaving(page)).toBe(false) // nothing to lose yet
   await goTo(page, LIST)
   await addName(page, SENTINEL)
-  expect(await leaving()).toBe(true)
+  expect(await leaving(page)).toBe(true)
   await expect(status(page)).toContainText('Not saved')
   await goTo(page, '#/save')
   await download(page, 'Download a file without a password')
   await expect(status(page)).toContainText('Matches your file')
-  expect(await leaving()).toBe(false)
+  expect(await leaving(page)).toBe(false)
   await goTo(page, LIST)
   await addName(page, 'Changed after download')
-  expect(await leaving()).toBe(true)
+  expect(await leaving(page)).toBe(true)
   await expect(status(page)).toContainText('Unsaved changes')
 })
 
@@ -508,4 +509,187 @@ test('the save and unlock screens fit at 320px with no horizontal scroll', async
   await page.reload()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
+})
+
+/** Two tabs on one saved password inventory; the second has unlocked and the first has not been touched. */
+async function twoTabsWithPassword(page: Page, context: import('@playwright/test').BrowserContext) {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'password')
+  const second = await context.newPage()
+  await second.goto(`/${LIST}`)
+  await second.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await second.getByRole('button', { name: 'Unlock' }).click()
+  await expect(second.getByRole('list', { name: 'Your list' })).toContainText(SENTINEL)
+  return second
+}
+
+test('review 1: stopping browser saving after a reload still warns before leaving', async ({ page }) => {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  await page.reload()
+  await goTo(page, LIST)
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SENTINEL)
+  await goTo(page, '#/save')
+  await page.getByRole('button', { name: 'Stop saving in this browser' }).click()
+  await page.getByRole('group', { name: saveCopy.stopHeading }).getByRole('button', { name: 'Yes, delete the saved copy' }).click()
+  await expect(main(page)).toContainText(saveCopy.stopped)
+  expect(await leaving(page)).toBe(true) // the only copy was just deleted
+})
+
+test('review 2, 6: a stale tab warns that its changes are lost, warns on leaving, and cannot stop saving', async ({ page, context }) => {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  const second = await context.newPage()
+  await second.goto(`/${LIST}`)
+  await expect(second.getByLabel('A person, institution, or principle')).toBeVisible()
+  await addName(second, 'From-Second-Tab')
+  await expect(status(page)).toContainText('Changed in another tab')
+  expect(await leaving(page)).toBe(false) // nothing here that the save lacks
+  await goTo(page, LIST)
+  await addName(page, 'Only-In-This-Tab')
+  expect(await leaving(page)).toBe(true)
+  await goTo(page, '#/save')
+  await expect(main(page)).toContainText('will be lost')
+  await expect(main(page).getByRole('button', { name: 'Stop saving in this browser' })).toHaveCount(0)
+  await second.close()
+})
+
+test('review 3: replacing a newer save really writes this tab\'s inventory, once', async ({ page, context }) => {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  const second = await context.newPage()
+  await second.goto(`/${LIST}`)
+  await expect(second.getByLabel('A person, institution, or principle')).toBeVisible()
+  await addName(second, 'From-Second-Tab')
+  await expect(status(page)).toContainText('Changed in another tab')
+  await goTo(page, '#/save')
+  await main(page).getByRole('button', { name: saveCopy.staleReplace }).click()
+  await main(page).getByRole('group', { name: saveCopy.staleReplaceHeading }).getByRole('button', { name: saveCopy.staleReplaceYes }).click()
+  await expect(main(page)).toContainText(saveCopy.savedBrowserPlain)
+  expect(await stored(page)).toContain(SENTINEL)
+  expect(await stored(page)).not.toContain('From-Second-Tab')
+  await expect(status(page)).toHaveText('Saved on this device')
+  await second.close()
+})
+
+test('review 3, 4, 7: after an unlock goes stale, replacing is a one-time, explicit choice', async ({ page, context }) => {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'password')
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  const second = await context.newPage()
+  await second.goto(`/${LIST}`)
+  await second.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await second.getByRole('button', { name: 'Unlock' }).click()
+  await expect(second.getByRole('list', { name: 'Your list' })).toContainText(SENTINEL)
+  const before = await stored(second)
+  await addName(second, 'From-Second-Tab')
+  await expect.poll(() => stored(second)).not.toBe(before)
+  const theirs = await stored(second)
+
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByRole('button', { name: 'Unlock' }).click()
+  await expect(status(page)).toContainText('Changed in another tab')
+  expect(await stored(page)).toBe(theirs) // unlocking wrote nothing over it
+  await goTo(page, '#/save')
+  await expect(main(page).getByRole('button', { name: 'Save in this browser without a password' })).toHaveCount(0)
+
+  // The first attempt after confirming fails; a second attempt must need a new confirmation.
+  await main(page).getByRole('button', { name: saveCopy.staleReplace }).click()
+  await main(page).getByRole('group', { name: saveCopy.staleReplaceHeading }).getByRole('button', { name: saveCopy.staleReplaceYesChoose }).click()
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem
+    let failed = false
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (!failed) { failed = true; throw new DOMException('full', 'QuotaExceededError') }
+      return original.call(this, k, v)
+    }
+  })
+  await page.getByRole('button', { name: 'Save in this browser without a password' }).click()
+  await expect(main(page).getByRole('alert')).toBeVisible()
+  expect(await stored(page)).toBe(theirs)
+  await expect(main(page).getByRole('button', { name: 'Save in this browser without a password' })).toHaveCount(0)
+  expect(await stored(page)).toBe(theirs)
+
+  await main(page).getByRole('button', { name: saveCopy.staleReplace }).click()
+  await main(page).getByRole('group', { name: saveCopy.staleReplaceHeading }).getByRole('button', { name: saveCopy.staleReplaceYesChoose }).click()
+  await page.getByRole('button', { name: 'Save in this browser without a password' }).click()
+  await expect(main(page)).toContainText(saveCopy.savedBrowserPlain)
+  expect(await stored(page)).toContain(SENTINEL)
+  await second.close()
+})
+
+test('review 5: opening a password file over a readable browser save never writes readable text', async ({ page, browser }) => {
+  const SECRET = 'Secret-B-9921'
+  const other = await browser.newContext()
+  const pageB = await other.newPage()
+  await begin(pageB)
+  await goTo(pageB, LIST)
+  await addName(pageB, SECRET)
+  await goTo(pageB, '#/save')
+  await pageB.getByLabel('Password', { exact: true }).fill('another long passphrase')
+  await pageB.getByLabel('Type it again').fill('another long passphrase')
+  const file = await download(pageB, 'Download a file with a password')
+  await other.close()
+
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  await page.evaluate(() => {
+    const writes: string[] = []
+    ;(window as unknown as { __writes: string[] }).__writes = writes
+    const original = Storage.prototype.setItem
+    Storage.prototype.setItem = function (k: string, v: string) { writes.push(v); return original.call(this, k, v) }
+  })
+  await goTo(page, '#/home')
+  await openFile(page, { name: file.name, buffer: Buffer.from(file.text) })
+  await page.getByLabel('Password for this file').fill('another long passphrase')
+  await page.getByRole('button', { name: 'Open file' }).click()
+  const ask = page.getByRole('group', { name: saveCopy.replaceHeading })
+  await expect(ask).toContainText(saveCopy.replaceBrowserEncrypted)
+  await ask.getByRole('button', { name: 'Replace and open' }).click()
+  await expect(status(page)).toHaveText('Saved on this device, with a password')
+  expect(JSON.parse((await stored(page)) as string).format).toBe('step4-inventory-encrypted')
+  const writes = await page.evaluate(() => (window as unknown as { __writes: string[] }).__writes)
+  expect(writes.length).toBeGreaterThan(0)
+  expect(writes.filter((w) => w.includes(SECRET))).toEqual([])
+})
+
+test('review 7: a second tab unlocking does not make the first stale, and Lock still works', async ({ page, context }) => {
+  const second = await twoTabsWithPassword(page, context)
+  await page.waitForTimeout(500)
+  await expect(status(page)).toHaveText('Saved on this device, with a password')
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await second.close()
+})
+
+test('review 7: Lock in a stale tab locks at once without edits, and warns first with edits', async ({ page, context }) => {
+  const second = await twoTabsWithPassword(page, context)
+  await addName(second, 'From-Second-Tab')
+  await expect(status(page)).toContainText('Changed in another tab')
+  const theirs = await stored(second)
+  await goTo(page, LIST)
+  await addName(page, 'Lost-Edit')
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  const ask = page.getByRole('group', { name: saveCopy.lockStaleHeading })
+  await expect(ask).toContainText('will be lost')
+  await ask.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText('Lost-Edit')
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  await page.getByRole('group', { name: saveCopy.lockStaleHeading }).getByRole('button', { name: saveCopy.lockStaleYes }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await expect(page.locator('body')).not.toContainText('Lost-Edit')
+  expect(await stored(page)).toBe(theirs)
+
+  // With nothing unsaved, a stale tab locks at once.
+  const third = await context.newPage()
+  await third.goto(`/${LIST}`)
+  await third.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await third.getByRole('button', { name: 'Unlock' }).click()
+  await expect(third.getByRole('list', { name: 'Your list' })).toContainText('From-Second-Tab')
+  await addName(third, 'Third-Tab-Name')
+  await expect(status(second)).toContainText('Changed in another tab')
+  await second.getByRole('button', { name: 'Lock', exact: true }).click()
+  await expect(second.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await third.close()
 })

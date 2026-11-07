@@ -3,10 +3,9 @@ import { useRef, useState } from 'preact/hooks';
 import { PASSWORD_WARNING, PLAIN_WARNING, saveCopy } from '../../content/copy';
 import { createKey, decrypt, type Envelope, type SessionKey } from '../../core/crypto';
 import type { InventoryDoc } from '../../core/doc';
-import { backupFileName, MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
+import { MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
 import { FileError } from '../../core/validate';
-import { downloadText } from '../download';
-import { currentState, eraseBrowserData, markDownloaded, openDocument, useApp } from '../store';
+import { currentState, downloadBackup, eraseBrowserData, openDocument, useApp } from '../store';
 
 const MIN_PASSWORD = 8;
 
@@ -84,13 +83,13 @@ export function EraseEverything() {
           {saveCopy.eraseText}
         </Confirm>
       ) : (
-        <button type="button" onClick={() => { setFailed(false); setAsking(true); }}>Erase everything</button>
+        <button type="button" onClick={() => { setFailed(false); setAsking(true); }}>{saveCopy.labels.eraseButton}</button>
       )}
     </section>
   );
 }
 
-type Opened = { doc: InventoryDoc };
+type Opened = { doc: InventoryDoc; session?: SessionKey };
 type Step = { name: 'idle' } | { name: 'password'; envelope: Envelope } | { name: 'confirm'; opened: Opened };
 
 function openErrorText(err: unknown): string {
@@ -111,15 +110,15 @@ export function OpenFile() {
   const input = useRef<HTMLInputElement>(null);
 
   const existing = state.doc !== null || state.pendingEnvelope !== null;
-  const finish = async (doc: InventoryDoc) => {
-    if (!existing) return apply(doc);
-    setStep({ name: 'confirm', opened: { doc } });
+  const finish = async (opened: Opened) => {
+    if (!existing) return apply(opened);
+    setStep({ name: 'confirm', opened });
   };
-  const apply = async (doc: InventoryDoc) => {
+  const apply = async ({ doc, session }: Opened) => {
     setStep({ name: 'idle' });
     setPassword('');
     try {
-      await openDocument(doc);
+      await openDocument(doc, session);
     } catch {
       // The file is open; only keeping it saved in this browser failed, and the header says so.
       setError(saveCopy.openedNotSaved);
@@ -134,7 +133,7 @@ export function OpenFile() {
     try {
       if (file.size > MAX_FILE_BYTES) throw new FileError('too-large');
       const parsed = parseSaved(await file.text());
-      if (parsed.kind === 'plain') await finish(parsed.doc);
+      if (parsed.kind === 'plain') await finish({ doc: parsed.doc });
       else setStep({ name: 'password', envelope: parsed.envelope });
     } catch (err) {
       setError(openErrorText(err));
@@ -145,8 +144,8 @@ export function OpenFile() {
     setError(null);
     setBusy(true);
     try {
-      const { doc } = await decrypt(envelope, password);
-      await finish(doc);
+      const { doc, session } = await decrypt(envelope, password);
+      await finish({ doc, session });
     } catch (err) {
       setError(openErrorText(err));
     } finally {
@@ -154,16 +153,18 @@ export function OpenFile() {
     }
   };
 
+  const opening = step.name === 'confirm' ? step.opened : null;
   const replaceText = state.pendingEnvelope
     ? saveCopy.replaceLocked
-    : state.mode.kind === 'none' ? saveCopy.replaceMemory : saveCopy.replaceBrowser;
+    : state.mode.kind === 'none' ? saveCopy.replaceMemory
+      : state.mode.kind === 'browser-plain' && opening?.session ? saveCopy.replaceBrowserEncrypted : saveCopy.replaceBrowser;
 
   return (
     <section>
       <h2>{saveCopy.openHeading}</h2>
       <p class="note">{saveCopy.openNote2}</p>
       <label class="field">
-        <span>Open a saved file</span>
+        <span>{saveCopy.labels.openFile}</span>
         <input
           ref={input}
           type="file"
@@ -186,11 +187,11 @@ export function OpenFile() {
         >
           <p>{saveCopy.filePasswordText}</p>
           <label class="field">
-            <span>Password for this file</span>
+            <span>{saveCopy.labels.filePassword}</span>
             <input type="password" value={password} autocomplete="current-password" onInput={(e) => setPassword((e.currentTarget as HTMLInputElement).value)} />
           </label>
           <p>
-            <button type="submit" class="primary" disabled={busy}>{busy ? saveCopy.working : 'Open file'}</button>
+            <button type="submit" class="primary" disabled={busy}>{busy ? saveCopy.working : saveCopy.labels.openFileButton}</button>
           </p>
         </form>
       )}
@@ -199,7 +200,7 @@ export function OpenFile() {
           title={saveCopy.replaceHeading}
           yes={saveCopy.replaceYes}
           no="Cancel"
-          onYes={() => void apply(step.opened.doc)}
+          onYes={() => void apply(step.opened)}
           onNo={() => setStep({ name: 'idle' })}
         >
           {replaceText}
@@ -214,7 +215,8 @@ export function Save() {
   const doc = state.doc!;
   const mode = state.mode;
   const encrypted = mode.kind === 'browser-encrypted';
-  const stale = state.saveStatus === 'stale';
+  // Asked of the saver, not the status: a failed attempt changes the status but the save is still stale.
+  const stale = saver.isStale;
 
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
@@ -223,8 +225,8 @@ export function Save() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>(null);
   const [asking, setAsking] = useState<'remove' | 'stop' | 'replace' | null>(null);
-  // Set only by the explicit "replace the other tab's save" step.
-  const [overwrite, setOverwrite] = useState(false);
+  // Set by confirming "replace" while no mode is active; it covers exactly one save attempt.
+  const [armed, setArmed] = useState(false);
 
   const run = async (task: () => Promise<string>) => {
     setMessage(null);
@@ -249,7 +251,9 @@ export function Save() {
       const next = withPassword
         ? { kind: 'browser-encrypted' as const, session: await createKey(password) }
         : { kind: 'browser-plain' as const };
-      await setSaveMode(next, { overwriteStale: overwrite });
+      const permission = armed;
+      setArmed(false); // used up whether or not the save works
+      await setSaveMode(next, { overwriteStale: permission });
       if (first) void saver.requestPersistence();
       setPassword('');
       setAgain('');
@@ -263,15 +267,18 @@ export function Save() {
       if (problem) return refuse(problem);
     }
     void run(async () => {
-      let session: SessionKey | undefined;
-      if (encrypted) session = mode.session;
-      else if (withPassword) session = await createKey(password);
-      const current = currentState().doc ?? doc;
-      const text = await saver.fileContents(current, session);
-      const name = backupFileName(new Date());
-      downloadText(name, text);
-      markDownloaded(current);
-      return saveCopy.downloaded(name);
+      const session = encrypted ? mode.session : withPassword ? await createKey(password) : undefined;
+      return saveCopy.downloaded(await downloadBackup(session));
+    });
+  };
+
+  /** The confirmed replace of a newer save. With a mode in use it writes now; otherwise the next save may. */
+  const replaceNewer = () => {
+    setAsking(null);
+    if (mode.kind === 'none') return setArmed(true);
+    void run(async () => {
+      await setSaveMode(mode, { overwriteStale: true });
+      return encrypted ? saveCopy.savedBrowserEncrypted : saveCopy.savedBrowserPlain;
     });
   };
 
@@ -279,7 +286,7 @@ export function Save() {
     const problem = passwordProblem(newPassword, newAgain);
     if (problem) return refuse(problem);
     void run(async () => {
-      await setSaveMode({ kind: 'browser-encrypted', session: await createKey(newPassword) }, { overwriteStale: overwrite });
+      await setSaveMode({ kind: 'browser-encrypted', session: await createKey(newPassword) });
       setNewPassword('');
       setNewAgain('');
       return saveCopy.passwordChanged;
@@ -289,7 +296,7 @@ export function Save() {
   const removePassword = () => {
     setAsking(null);
     void run(async () => {
-      await setSaveMode({ kind: 'browser-plain' }, { overwriteStale: overwrite });
+      await setSaveMode({ kind: 'browser-plain' });
       return saveCopy.passwordRemoved;
     });
   };
@@ -311,7 +318,7 @@ export function Save() {
       {message?.kind === 'error' && <p class="notice alert" role="alert">{message.text}</p>}
       <div aria-live="polite">{message?.kind === 'ok' && <p class="notice">{message.text}</p>}</div>
 
-      {stale && !overwrite && (
+      {stale && !armed && (
         <section class="notice alert" aria-labelledby="stale-title">
           <h2 id="stale-title">{saveCopy.staleReplaceHeading}</h2>
           <p>{saveCopy.stale}</p>
@@ -322,24 +329,24 @@ export function Save() {
           {asking === 'replace' && (
             <Confirm
               title={saveCopy.staleReplaceHeading}
-              yes={saveCopy.staleReplaceYes}
+              yes={mode.kind === 'none' ? saveCopy.staleReplaceYesChoose : saveCopy.staleReplaceYes}
               no="Cancel"
-              onYes={() => { setOverwrite(true); setAsking(null); }}
+              onYes={replaceNewer}
               onNo={() => setAsking(null)}
             >
-              {saveCopy.staleReplaceWarning}
+              {mode.kind === 'none' ? saveCopy.staleReplaceChooseWarning : saveCopy.staleReplaceWarning}
             </Confirm>
           )}
         </section>
       )}
 
-      {!(stale && !overwrite) && (encrypted ? (
+      {!(stale && !armed) && (encrypted ? (
         <>
           <section>
             <h2>{saveCopy.passwordHeading}</h2>
             <p>{PASSWORD_WARNING}</p>
             <p class="actions">
-              <button type="button" disabled={busy} onClick={() => downloadFile(true)}>Download a file with a password</button>
+              <button type="button" disabled={busy} onClick={() => downloadFile(true)}>{saveCopy.labels.downloadPassword}</button>
             </p>
             <p class="note">{saveCopy.encryptedFileNote}</p>
           </section>
@@ -347,7 +354,7 @@ export function Save() {
             <h2>{saveCopy.changeHeading}</h2>
             <p>{PASSWORD_WARNING}</p>
             <PasswordFields
-              label="New password" againLabel="Type the new password again" hint={saveCopy.passwordHint}
+              label={saveCopy.labels.newPassword} againLabel={saveCopy.labels.typeNewAgain} hint={saveCopy.passwordHint}
               password={newPassword} again={newAgain} onPassword={setNewPassword} onAgain={setNewAgain}
             />
             <p><button type="button" disabled={busy} onClick={changePassword}>{busy ? saveCopy.working : saveCopy.changeButton}</button></p>
@@ -368,23 +375,23 @@ export function Save() {
           <section>
             <h2>{saveCopy.passwordHeading}</h2>
             <PasswordFields
-              label="Password" againLabel="Type it again" hint={saveCopy.passwordHint}
+              label={saveCopy.labels.password} againLabel={saveCopy.labels.typeAgain} hint={saveCopy.passwordHint}
               password={password} again={again} onPassword={setPassword} onAgain={setAgain}
             />
             <p>{PASSWORD_WARNING}</p>
             <p class="actions">
               <button type="button" class="primary" disabled={busy || !browserOk} onClick={() => saveInBrowser(true)}>
-                Save in this browser with a password
+                {saveCopy.labels.saveBrowserPassword}
               </button>
-              <button type="button" disabled={busy} onClick={() => downloadFile(true)}>Download a file with a password</button>
+              <button type="button" disabled={busy} onClick={() => downloadFile(true)}>{saveCopy.labels.downloadPassword}</button>
             </p>
           </section>
           <section>
             <h2>{saveCopy.plainHeading}</h2>
             <p>{PLAIN_WARNING}</p>
             <p class="actions">
-              <button type="button" disabled={busy || !browserOk} onClick={() => saveInBrowser(false)}>Save in this browser without a password</button>
-              <button type="button" disabled={busy} onClick={() => downloadFile(false)}>Download a file without a password</button>
+              <button type="button" disabled={busy || !browserOk} onClick={() => saveInBrowser(false)}>{saveCopy.labels.saveBrowserPlain}</button>
+              <button type="button" disabled={busy} onClick={() => downloadFile(false)}>{saveCopy.labels.downloadPlain}</button>
             </p>
           </section>
         </>
@@ -394,19 +401,19 @@ export function Save() {
         <h2>{saveCopy.backupHeading}</h2>
         <p>{saveCopy.backup}</p>
         <p class="note">{saveCopy.openNote}</p>
-        {stale && !overwrite && (
+        {stale && !armed && (
           <>
             {!encrypted && <p>{PLAIN_WARNING}</p>}
             <p class="actions">
               <button type="button" disabled={busy} onClick={() => downloadFile(encrypted)}>
-                {encrypted ? 'Download a file with a password' : 'Download a file without a password'}
+                {encrypted ? saveCopy.labels.downloadPassword : saveCopy.labels.downloadPlain}
               </button>
             </p>
           </>
         )}
       </section>
 
-      {mode.kind !== 'none' && (
+      {mode.kind !== 'none' && !stale && (
         <section>
           <h2>{saveCopy.stopHeading}</h2>
           {asking === 'stop' ? (

@@ -98,6 +98,25 @@ export class Saver {
     return true;
   }
 
+  /** True while another tab's newer save is unseen; nothing is written until a deliberate setMode. */
+  get isStale(): boolean {
+    return this.stale;
+  }
+
+  /**
+   * Enters a browser mode without writing, for a save that was just read (loadRaw) and opened:
+   * the stored bytes stay exactly as they are, so another tab holding the same save is not made stale.
+   * Refuses when the stored value is no longer the one loadRaw returned.
+   */
+  resume(mode: SaveMode): void {
+    if (mode.kind === 'none') throw new Error('Nothing to resume');
+    if (!this.storage || this.known === undefined) throw new Error('Nothing was loaded to resume');
+    if (!this.stale && this.storage.getItem(STORAGE_KEY) !== this.known) this.markStale();
+    if (this.stale) this.abandoned();
+    this.mode = mode;
+    this.onStatus('saved');
+  }
+
   async setMode(mode: SaveMode, doc: InventoryDoc, options?: { overwriteStale?: boolean }): Promise<void> {
     if (mode.kind !== 'none' && !this.storage) {
       throw new Error('Browser storage is unavailable');

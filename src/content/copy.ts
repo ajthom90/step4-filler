@@ -43,6 +43,23 @@ export const saveCopy = {
   tooShort: 'Use at least 8 characters.',
   mismatch: "The two passwords don't match.",
   working: 'Working…',
+  labels: {
+    saveBrowserPassword: 'Save in this browser with a password',
+    saveBrowserPlain: 'Save in this browser without a password',
+    downloadPassword: 'Download a file with a password',
+    downloadPlain: 'Download a file without a password',
+    password: 'Password',
+    typeAgain: 'Type it again',
+    newPassword: 'New password',
+    typeNewAgain: 'Type the new password again',
+    filePassword: 'Password for this file',
+    openFile: 'Open a saved file',
+    openFileButton: 'Open file',
+    unlock: 'Unlock',
+    lock: 'Lock',
+    eraseButton: 'Erase everything',
+    settingsSaveLink: 'Choose how this inventory is saved',
+  },
   savedBrowserPlain: 'Saved in this browser as readable text. Changes you make from now on save here by themselves.',
   savedBrowserEncrypted:
     'Saved in this browser with your password. Changes you make from now on save here by themselves. You will need the password each time you open the site.',
@@ -53,12 +70,20 @@ export const saveCopy = {
   tooLarge:
     "Your inventory is bigger than this site can save or open again (5 MB). It can't be saved in this browser, and it can't be downloaded either. Shorten the longest entries, then try again.",
   downloadFailed: "Couldn't make the file. Your work is still open on this page.",
-  stale: 'Another tab changed the save in this browser. Reload this page to see the newer version. That is the safe choice.',
+  stale:
+    'Another tab changed the save in this browser. Reload this page to see the newer version. ' +
+    'Anything you changed on this page since will be lost, so download a file first if you want to keep it.',
+  staleBanner:
+    'Another tab saved a newer version of this inventory. Reload this page to see it. This page will not overwrite it. ' +
+    'Changes made on this page since then are not saved.',
   staleReload: 'Reload this page',
   staleReplace: 'Replace the other tab’s save with what is open here',
   staleReplaceHeading: 'Replace the newer save?',
   staleReplaceWarning: 'This permanently overwrites what the other tab saved. Only do it if what is open here is the version you want.',
   staleReplaceYes: 'Yes, replace it',
+  staleReplaceYesChoose: 'Yes, let me choose a new save',
+  staleReplaceChooseWarning:
+    'Your next save will permanently overwrite what the other tab saved. This only lasts for one save; if it fails, you will be asked again.',
   changeHeading: 'Change your password',
   changeButton: 'Change password',
   passwordChanged:
@@ -87,6 +112,10 @@ export const saveCopy = {
   forgotHeading: 'Forgot your password?',
   forgotText:
     "No one can reset it, and the saved copy can't be read without it. If you have a downloaded file, you can open that instead. Otherwise you can erase the saved copy and start over.",
+  lockStaleHeading: 'Lock and lose your latest changes?',
+  lockStaleText:
+    'Another tab saved a newer version, so changes made on this page since then are not saved and will be lost if you lock. Download a file first if you want to keep them.',
+  lockStaleYes: 'Lock and discard those changes',
   lockFailed:
     "Couldn't lock, because the latest changes couldn't be saved. Nothing was cleared. Download a file to keep your work, then try again.",
   lockUnavailable: 'Lock is only available when the inventory is saved in this browser with a password.',
@@ -108,6 +137,8 @@ export const saveCopy = {
     'Opening this file replaces your current inventory and the copy saved in this browser. Download a file first if you want to keep it.',
   replaceLocked:
     'The password-protected copy saved in this browser stays as it is until you choose how to save the opened inventory. Choosing replaces it.',
+  replaceBrowserEncrypted:
+    "Opening this file replaces your current inventory and the copy saved in this browser. The browser copy will then be protected with this file's password, not saved as readable text. Download a file first if you want to keep your current work.",
   replaceYes: 'Replace and open',
   openedNotSaved: "The file is open, but it couldn't be saved in this browser. Your work is still open on this page.",
   eraseHeading: 'Erase everything',
@@ -122,6 +153,10 @@ export const saveCopy = {
     matchesFile: 'Matches your file. No changes since.',
     changedSinceDownload: 'Unsaved changes since your file',
     pending: 'Changes not saved yet',
+    saving: 'Saving…',
+    saved: 'Saved on this device',
+    failed: "Couldn't save. Your work is still open here.",
+    stale: 'Changed in another tab',
     encrypted: 'Saved on this device, with a password',
   },
 };

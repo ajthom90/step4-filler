@@ -436,3 +436,56 @@ describe('Saver', () => {
     });
   });
 });
+
+describe('Saver.resume', () => {
+  it('enters a browser mode without writing, then the next edit writes normally', async () => {
+    storage.data.set(STORAGE_KEY, 'previously stored bytes');
+    const s = make();
+    expect(s.loadRaw()).toBe('previously stored bytes');
+    const writes: string[] = [];
+    const original = storage.setItem.bind(storage);
+    storage.setItem = (k, v) => { writes.push(v); original(k, v); };
+    s.resume({ kind: 'browser-plain' });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(writes).toEqual([]);
+    expect(storage.getItem(STORAGE_KEY)).toBe('previously stored bytes');
+    expect(statuses.at(-1)).toBe('saved');
+    s.edited(docWith('Pat'));
+    await vi.advanceTimersByTimeAsync(900);
+    expect(writes).toHaveLength(1);
+    expect(storage.getItem(STORAGE_KEY)).toContain('Pat');
+  });
+
+  it('works for an encrypted mode and leaves the stored envelope identical', async () => {
+    const session = await createKey('correct horse battery');
+    const first = make();
+    await first.setMode({ kind: 'browser-encrypted', session }, docWith('Pat'));
+    const stored = storage.getItem(STORAGE_KEY);
+    const second = make();
+    second.loadRaw();
+    second.resume({ kind: 'browser-encrypted', session });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(storage.getItem(STORAGE_KEY)).toBe(stored);
+  });
+
+  it('refuses when another tab has already changed the save', () => {
+    storage.data.set(STORAGE_KEY, 'one');
+    const s = make();
+    s.loadRaw();
+    otherTabWrote('two');
+    expect(s.isStale).toBe(true);
+    expect(() => s.resume({ kind: 'browser-plain' })).toThrow();
+    s.edited(docWith('Pat'));
+    expect(storage.getItem(STORAGE_KEY)).toBe('one');
+  });
+
+  it('refuses when the stored value changed without an event, and before loadRaw', () => {
+    storage.data.set(STORAGE_KEY, 'one');
+    const s = make();
+    expect(() => s.resume({ kind: 'browser-plain' })).toThrow();
+    s.loadRaw();
+    storage.data.set(STORAGE_KEY, 'two');
+    expect(() => s.resume({ kind: 'browser-plain' })).toThrow();
+    expect(s.isStale).toBe(true);
+  });
+});
