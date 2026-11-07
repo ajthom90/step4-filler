@@ -17,7 +17,7 @@ export const RESENTMENT_DEFECTS = ['selfish', 'dishonest', 'selfSeeking', 'frigh
 export const HARM_WHERE = ['selfish', 'dishonest', 'inconsiderate'] as const;
 
 /** Columns per inventory, not counting the intro (column 0). */
-const TOTAL_COLUMNS: Record<InventoryId, number> = { resentments: 5, fears: 6, harms: 7 };
+const TOTAL_COLUMNS: Record<InventoryId, number> = { resentments: 4, fears: 6, harms: 7 };
 
 function resentmentSteps(doc: InventoryDoc): Step[] {
   const inventory = 'resentments';
@@ -39,7 +39,7 @@ function resentmentSteps(doc: InventoryDoc): Step[] {
   }
   for (const r of doc.resentments) {
     for (const f of RESENTMENT_DEFECTS) {
-      out.push({ key: `res:defect:${r.id}:${f}`, inventory, column: 5, kind: 'text', entryId: r.id, field: f });
+      out.push({ key: `res:defect:${r.id}:${f}`, inventory, column: 4, kind: 'text', entryId: r.id, field: f });
     }
   }
   return out;

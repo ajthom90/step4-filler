@@ -51,6 +51,19 @@ describe('step order', () => {
     ]);
   });
 
+  it('resentments use four columns', () => {
+    const doc = { ...emptyDoc('alcohol', god), resentments: [res('A', ['c1'])] };
+    const cols = Object.fromEntries(stepsFor(doc, 'resentments').map((s) => [s.key, s.column]));
+    expect(cols).toEqual({
+      'res:intro': 0, 'res:list': 1, 'res:causes:A': 2, 'res:affects:A:c1': 3,
+      'res:study': 4, 'res:prayer:A': 4,
+      'res:defect:A:selfish': 4, 'res:defect:A:dishonest': 4, 'res:defect:A:selfSeeking': 4, 'res:defect:A:frightened': 4,
+    });
+    expect(progress(visitAll(doc, 'resentments'), 'resentments').totalColumns).toBe(4);
+    expect(progress(doc, 'fears').totalColumns).toBe(6);
+    expect(progress(doc, 'harms').totalColumns).toBe(7);
+  });
+
   it('steps carry inventory, entry, cause and field', () => {
     const doc = { ...emptyDoc('alcohol', god), resentments: [res('A', ['c1'])] };
     const s = stepsFor(doc, 'resentments');
