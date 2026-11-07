@@ -96,15 +96,17 @@ export class Saver {
     return true;
   }
 
-  async setMode(mode: SaveMode, doc: InventoryDoc): Promise<void> {
+  async setMode(mode: SaveMode, doc: InventoryDoc, options?: { overwriteStale?: boolean }): Promise<void> {
     if (mode.kind !== 'none' && !this.storage) {
       throw new Error('Browser storage is unavailable');
     }
+    // A newer save from another tab is replaced only when the caller says so.
+    const overwrite = this.stale && options?.overwriteStale === true;
+    if (this.stale && mode.kind !== 'none' && !overwrite) this.abandoned();
     this.cancelTimer();
     this.pending = null;
     const epoch = ++this.epoch;
     const seq = ++this.modeSeq;
-    const overwrite = this.stale; // an explicit call from a stale state replaces the newer save
     this.changing++;
     try {
       await this.serial(async () => {
@@ -141,8 +143,7 @@ export class Saver {
   }
 
   edited(doc: InventoryDoc): void {
-    if (this.stale) return;
-    if (this.mode.kind === 'none' && this.changing === 0) return;
+    if (this.changing === 0 && (this.stale || this.mode.kind === 'none')) return;
     this.pending = doc;
     this.onStatus('unsaved');
     this.cancelTimer();

@@ -169,7 +169,7 @@ describe('Saver', () => {
     await s.flush();
     expect(storage.getItem(STORAGE_KEY)).toBe('{"theirs":true}');
     expect(statuses.at(-1)).toBe('stale');
-    await s.setMode({ kind: 'browser-plain' }, docWith('chosen'));
+    await s.setMode({ kind: 'browser-plain' }, docWith('chosen'), { overwriteStale: true });
     expect(statuses.at(-1)).toBe('saved');
     expect(storage.getItem(STORAGE_KEY)).toContain('chosen');
     s.edited(docWith('after'));
@@ -262,16 +262,60 @@ describe('Saver', () => {
       expect(statuses.at(-1)).toBe('saved');
     });
 
-    it('I1a: a tab in mode none learns another tab saved, and unlocking cannot silently overwrite', async () => {
+    it('I1a: a tab in mode none learns another tab saved, and unlocking without the option cannot overwrite', async () => {
       const s = make();
       expect(s.loadRaw()).toBeNull();
       storage.setItem(STORAGE_KEY, '{"theirs":true}');
       otherTabWrote('{"theirs":true}');
       expect(statuses.at(-1)).toBe('stale');
       const session = await createKey('longenough');
-      // A deliberate setMode from stale is the explicit overwrite path.
-      await s.setMode({ kind: 'browser-encrypted', session }, docWith('mine'));
+      await expect(s.setMode({ kind: 'browser-encrypted', session }, docWith('mine'))).rejects.toThrow();
+      expect(storage.getItem(STORAGE_KEY)).toBe('{"theirs":true}');
+      expect(statuses.at(-1)).toBe('stale');
+    });
+
+    it('overwriteStale deliberately replaces the newer save', async () => {
+      const s = make();
+      s.loadRaw();
+      storage.setItem(STORAGE_KEY, '{"theirs":true}');
+      otherTabWrote('{"theirs":true}');
+      const session = await createKey('longenough');
+      await s.setMode({ kind: 'browser-encrypted', session }, docWith('mine'), { overwriteStale: true });
       expect(parseSaved(storage.getItem(STORAGE_KEY)!).kind).toBe('encrypted');
+      expect(statuses.at(-1)).toBe('saved');
+    });
+
+    it('I3c: an edit during an overwriting setMode from stale is held and written', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      storage.setItem(STORAGE_KEY, '{"theirs":true}');
+      otherTabWrote('{"theirs":true}');
+      const p = s.setMode({ kind: 'browser-plain' }, docWith('mine'), { overwriteStale: true });
+      s.edited(docWith('DURING'));
+      await p;
+      expect(statuses.at(-1)).toBe('unsaved');
+      await vi.advanceTimersByTimeAsync(800);
+      expect(storage.getItem(STORAGE_KEY)).toContain('DURING');
+      expect(statuses.at(-1)).toBe('saved');
+    });
+
+    it('I3c: the same, encrypted, decrypts to the held edit', async () => {
+      const s = make();
+      await s.setMode({ kind: 'browser-plain' }, docWith('first'));
+      storage.setItem(STORAGE_KEY, '{"theirs":true}');
+      otherTabWrote('{"theirs":true}');
+      const session = await createKey('longenough');
+      const p = s.setMode({ kind: 'browser-encrypted', session }, docWith('mine'), { overwriteStale: true });
+      s.edited(docWith('DURING'));
+      await p;
+      await vi.advanceTimersByTimeAsync(800);
+      await s.flush();
+      const raw = storage.getItem(STORAGE_KEY)!;
+      expect(raw).not.toContain('DURING');
+      const parsed = parseSaved(raw);
+      if (parsed.kind !== 'encrypted') throw new Error('expected encrypted');
+      expect((await decrypt(parsed.envelope, 'longenough')).doc.resentments[0].name).toBe('DURING');
+      expect(statuses.at(-1)).toBe('saved');
     });
 
     it('I1b: a missed storage event is caught by comparing with the baseline before writing', async () => {
