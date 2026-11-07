@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { checklistCopy } from '../../content/checklist';
 import { saveCopy } from '../../content/copy';
 import { pledgeCopy } from '../../content/pledge';
+import { rememberOpener } from '../HelpSheet';
 import { INVENTORY_TITLES } from '../stepInfo';
 import { useApp } from '../store';
 import { ChecklistForm } from '../print/ChecklistForm';
@@ -25,11 +26,19 @@ const SECTIONS: { key: Section; label: string }[] = [
 /** A native dialog, so focus stays inside it and Escape closes it. It is closed before printing starts. */
 function PrintWarning({ open, onCancel, onContinue }: { open: boolean; onCancel: () => void; onContinue: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const restore = useRef<(() => void) | null>(null);
   useEffect(() => {
     const d = dialog.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
+    if (open && !d.open) {
+      restore.current = rememberOpener();
+      d.showModal();
+    }
+    if (!open && d.open) {
+      d.close();
+      restore.current?.(); // back to the button that asked, whether the person cancelled or went on to print
+      restore.current = null;
+    }
   }, [open]);
   return (
     <dialog ref={dialog} class="sheet warning" aria-labelledby="print-warning-title" onClose={onCancel}>

@@ -167,7 +167,8 @@ test('browser save with password hides the text; reload asks for it; a wrong one
 
   await password.fill(PASSWORD)
   await page.getByRole('button', { name: 'Unlock' }).click()
-  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+  // Not the heading "Unlock your inventory" (also a match for "Your inventory"): the inventory is open once Lock is offered.
+  await expect(page.getByRole('button', { name: 'Lock', exact: true })).toBeVisible()
   await goTo(page, LIST)
   await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SENTINEL)
   expect(await stored(page)).not.toContain(SENTINEL)
@@ -375,7 +376,8 @@ test('change password works and the old password no longer opens the save', asyn
   await expect(page.getByRole('alert')).toContainText(saveCopy.unlockWrong)
   await page.getByLabel('Password', { exact: true }).fill(next)
   await page.getByRole('button', { name: 'Unlock' }).click()
-  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+  // Not the heading "Unlock your inventory" (also a match for "Your inventory"): the inventory is open once Lock is offered.
+  await expect(page.getByRole('button', { name: 'Lock', exact: true })).toBeVisible()
   await goTo(page, LIST)
   await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SENTINEL)
 })
