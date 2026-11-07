@@ -343,7 +343,7 @@ test('Lock clears the screen and requires the password again', async ({ page }) 
   await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SENTINEL)
 })
 
-test('Lock does not lock when the latest changes cannot be saved', async ({ page }) => {
+test('Lock warns instead of locking when the latest changes cannot be saved', async ({ page }) => {
   await beginWithSentinel(page)
   await saveInBrowser(page, 'password')
   await goTo(page, LIST)
@@ -352,9 +352,12 @@ test('Lock does not lock when the latest changes cannot be saved', async ({ page
   })
   await addName(page, 'Unsaved-Name')
   await page.getByRole('button', { name: 'Lock', exact: true }).click()
-  await expect(page.getByRole('alert')).toContainText(saveCopy.lockFailed)
+  const ask = page.getByRole('group', { name: saveCopy.lockStaleHeading })
+  await expect(ask).toContainText('will be lost')
   await expect(page.getByRole('list', { name: 'Your list' })).toContainText('Unsaved-Name')
   await expect(page.getByRole('heading', { level: 1 })).not.toHaveText(saveCopy.unlockTitle)
+  await ask.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText('Unsaved-Name')
 })
 
 test('change password works and the old password no longer opens the save', async ({ page }) => {
@@ -895,4 +898,154 @@ test('N3: Lock in a stale tab counts text typed but not yet added', async ({ pag
   await ask.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByRole('list', { name: 'Your list' })).toContainText('Typed-Draft')
   await second.close()
+})
+
+const KEY_NAME = 'step4-inventory'
+const setStored = (page: Page, value: string) => page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY_NAME, value])
+const plainDoc = () => JSON.stringify(emptyDoc('food', { kind: 'god', custom: '' }))
+
+async function staleAgainstPlain(page: Page, context: import('@playwright/test').BrowserContext) {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  const second = await context.newPage()
+  await second.goto(`/${LIST}`)
+  await expect(second.getByLabel('A person, institution, or principle')).toBeVisible()
+  await addName(second, 'From-Second-Tab')
+  await expect(status(page)).toContainText('Changed in another tab')
+  return second
+}
+
+test('N1 route a: a replace confirmation left open cannot write readable text after a password is set elsewhere', async ({ page, context }) => {
+  const second = await staleAgainstPlain(page, context)
+  await goTo(page, '#/save')
+  await spyOnWrites(page)
+  await main(page).getByRole('button', { name: saveCopy.staleReplace }).click()
+  await goTo(second, '#/save')
+  await second.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await second.getByLabel('Type it again').fill(PASSWORD)
+  await second.getByRole('button', { name: 'Save in this browser with a password' }).click()
+  await expect(second.locator('main')).toContainText(saveCopy.savedBrowserEncrypted)
+  const theirs = await stored(page)
+  expect(JSON.parse(theirs as string).format).toBe('step4-inventory-encrypted')
+  await main(page).getByRole('group', { name: saveCopy.staleReplaceHeading }).getByRole('button', { name: saveCopy.staleReplaceYes }).click()
+  await expect(main(page).getByRole('alert')).toContainText(saveCopy.staleNoReplace)
+  expect(await stored(page)).toBe(theirs)
+  expect((await writes(page)).filter((w) => w.includes(SENTINEL))).toEqual([])
+  await second.close()
+})
+
+test('N1 route b: a choice armed before another tab sets a password cannot write readable text', async ({ page, context }) => {
+  const file = await secretFile(context.browser() as import('@playwright/test').Browser)
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  await page.getByRole('button', { name: 'Stop saving in this browser' }).click()
+  await page.getByRole('group', { name: saveCopy.stopHeading }).getByRole('button', { name: 'Yes, delete the saved copy' }).click()
+  await expect(main(page)).toContainText(saveCopy.stopped)
+  const second = await context.newPage()
+  await second.goto('/')
+  await setStored(second, plainDoc())
+  await expect(status(page)).toContainText('Changed in another tab')
+  await spyOnWrites(page)
+  await main(page).getByRole('button', { name: saveCopy.staleReplace }).click()
+  await main(page).getByRole('group', { name: saveCopy.staleReplaceHeading }).getByRole('button', { name: saveCopy.staleReplaceYesChoose }).click()
+  await setStored(second, file.text) // another tab now holds a password-protected save
+  await page.getByRole('button', { name: 'Save in this browser without a password' }).click()
+  await expect(main(page).getByRole('alert')).toContainText(saveCopy.staleNoReplace)
+  expect(await stored(page)).toBe(file.text)
+  expect((await writes(page)).filter((w) => w.includes(SENTINEL))).toEqual([])
+  await second.close()
+})
+
+test('N1 route c: a save this site cannot read is never replaced', async ({ page, context }) => {
+  const second = await staleAgainstPlain(page, context)
+  await goTo(page, '#/save')
+  await spyOnWrites(page)
+  await main(page).getByRole('button', { name: saveCopy.staleReplace }).click()
+  const newer = JSON.stringify({ ...JSON.parse(plainDoc()), version: 99 })
+  await setStored(second, newer)
+  await main(page).getByRole('group', { name: saveCopy.staleReplaceHeading }).getByRole('button', { name: saveCopy.staleReplaceYes }).click()
+  await expect(main(page).getByRole('alert')).toContainText(saveCopy.staleNoReplace)
+  expect(await stored(page)).toBe(newer)
+  expect((await writes(page)).filter((w) => w.includes(SENTINEL))).toEqual([])
+  // And it is not even offered once the page can see it.
+  await page.reload()
+  await expect(page.locator('main')).not.toContainText(SENTINEL)
+  await second.close()
+})
+
+test('S1 message: a file opened from the Save screen with writes failing still tells the person where it stands', async ({ page }) => {
+  const incoming = emptyDoc('food', { kind: 'god', custom: '' })
+  incoming.resentments.push({
+    id: 'b'.repeat(32), name: 'Incoming-Name', causes: [], prayerDone: false, selfish: '', dishonest: '', selfSeeking: '', frightened: '',
+  })
+  const buffer = Buffer.from(JSON.stringify(incoming))
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  const old = await stored(page)
+  await spyOnWrites(page)
+  await failWrites(page, true)
+  await goTo(page, '#/save')
+  await openFile(page, { name: 'incoming.json', buffer })
+  await page.getByRole('group', { name: saveCopy.replaceHeading }).getByRole('button', { name: 'Replace and open' }).click()
+  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+  const notice = page.getByRole('alert').filter({ hasText: saveCopy.openedNotSaved })
+  await expect(notice).toBeVisible()
+  expect(await stored(page)).toBe(old)
+  await notice.getByRole('button', { name: 'Dismiss' }).click()
+  await expect(notice).toHaveCount(0)
+
+  // The same from Home.
+  await failWrites(page, false)
+  await saveInBrowser(page, 'plain')
+  await failWrites(page, true)
+  await goTo(page, '#/home')
+  await openFile(page, { name: 'incoming.json', buffer })
+  await page.getByRole('group', { name: saveCopy.replaceHeading }).getByRole('button', { name: 'Replace and open' }).click()
+  await expect(page.getByRole('alert').filter({ hasText: saveCopy.openedNotSaved })).toBeVisible()
+  // A later successful save clears it.
+  await failWrites(page, false)
+  await saveInBrowser(page, 'plain')
+  await expect(page.getByRole('alert').filter({ hasText: saveCopy.openedNotSaved })).toHaveCount(0)
+})
+
+test('S1 message: opening a file on the first-visit screen has nothing to fail and shows no warning', async ({ page }) => {
+  await page.goto('/')
+  await openFile(page, { name: 'incoming.json', buffer: Buffer.from(plainDoc()) })
+  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+  await expect(page.getByRole('alert').filter({ hasText: saveCopy.openedNotSaved })).toHaveCount(0)
+})
+
+test('R7b revised: after a failed upgrade from Home, Lock shows, warns, clears the screen, and the old copy is untouched', async ({ page, browser }) => {
+  const file = await secretFile(browser)
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  const old = await stored(page)
+  await spyOnWrites(page)
+  await failWrites(page, true)
+  await openSecretOverPlain(page, file)
+  await expect(page.getByRole('alert').filter({ hasText: saveCopy.openedNotSaved })).toBeVisible()
+  await goTo(page, LIST)
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SECRET)
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  const ask = page.getByRole('group', { name: saveCopy.lockStaleHeading })
+  await expect(ask).toContainText('will be lost')
+  await expect(ask.getByRole('button', { name: saveCopy.labels.downloadPassword })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SECRET) // nothing cleared yet
+  await ask.getByRole('button', { name: saveCopy.lockStaleYes }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await expect(page.locator('body')).not.toContainText(SECRET)
+  await expect(page.locator('body')).not.toContainText(SENTINEL)
+  await expect(main(page)).toContainText(saveCopy.lockedNothingKept)
+  expect(await stored(page)).toBe(old)
+  await failWrites(page, false)
+  await page.reload()
+  await goTo(page, LIST)
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SENTINEL) // the old copy, as it was
+  await expect(page.locator('body')).not.toContainText(SECRET)
+})
+
+test('R7b revised: a tab that chose a readable save has no Lock', async ({ page }) => {
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  await expect(page.getByRole('button', { name: 'Lock', exact: true })).toHaveCount(0)
 })

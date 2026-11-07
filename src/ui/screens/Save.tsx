@@ -6,7 +6,7 @@ import { createKey, decrypt, type Envelope, type SessionKey } from '../../core/c
 import type { InventoryDoc } from '../../core/doc';
 import { MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
 import { FileError } from '../../core/validate';
-import { downloadBackup, eraseBrowserData, isStale, openDocument, storedSaveIsEncrypted, useApp } from '../store';
+import { downloadBackup, eraseBrowserData, isStale, openDocument, ReplaceRefused, storedSaveIsReplaceableByReadable, useApp } from '../store';
 
 const MIN_PASSWORD = 8;
 
@@ -15,6 +15,7 @@ type Message = { kind: 'ok' | 'error'; text: string } | null;
 /** Why a save or download did not happen, in words for the person. */
 function failureText(err: unknown): string {
   if (err instanceof FileError && err.code === 'too-large') return saveCopy.tooLarge;
+  if (err instanceof ReplaceRefused) return saveCopy.staleNoReplace;
   if (isStale()) return saveCopy.stale;
   return saveCopy.saveFailed;
 }
@@ -118,12 +119,8 @@ export function OpenFile() {
   const apply = async ({ doc, session }: Opened) => {
     setStep({ name: 'idle' });
     setPassword('');
-    try {
-      await openDocument(doc, session);
-    } catch {
-      // The file is open; only keeping it saved in this browser failed, and the header says so.
-      setError(saveCopy.openedNotSaved);
-    }
+    // If keeping it saved here fails, the store leaves a notice on screen; it outlives this component.
+    await openDocument(doc, session);
   };
 
   const onFile = async (file: File | undefined) => {
@@ -315,7 +312,7 @@ export function Save() {
 
   // A readable page never replaces a password-protected save.
   const heldSession = encrypted ? mode.session : mode.kind === 'none' ? state.requiredSession : null;
-  const canReplace = !stale || heldSession !== null || !storedSaveIsEncrypted();
+  const canReplace = !stale || heldSession !== null || storedSaveIsReplaceableByReadable();
   const browserOk = saver.browserSaveAvailable;
   const where = mode.kind === 'none' ? saveCopy.rightNow.none : encrypted ? saveCopy.rightNow.encrypted : saveCopy.rightNow.plain;
 

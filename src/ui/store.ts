@@ -3,6 +3,7 @@ import type { Envelope, SessionKey } from '../core/crypto';
 import type { InventoryDoc } from '../core/doc';
 import { Saver, STORAGE_KEY, type SaveMode, type SaveStatus } from '../core/saver';
 import { FileError } from '../core/validate';
+import { saveCopy } from '../content/copy';
 import { backupFileName, parseSaved } from '../core/fileformat';
 import { downloadText } from './download';
 import { parseRoute, routeHash, type Route } from './router';
@@ -30,6 +31,8 @@ export interface AppState {
   loadProblem: string | null;
   /** An encrypted save waiting for its password (the unlock screen, Task 11). */
   pendingEnvelope: Envelope | null;
+  /** A message that stays until dismissed or a later save works (for example, a file opened but not saved here). */
+  notice: string | null;
 }
 
 const PROBLEMS: Record<string, string> = {
@@ -97,6 +100,7 @@ function start(): void {
     locked: false,
     loadProblem: null,
     pendingEnvelope: null,
+    notice: null,
   };
   const raw = saver.loadRaw();
   if (raw !== null) {
@@ -164,8 +168,11 @@ export async function setSaveMode(
   if (mode.kind === 'browser-plain' && state.requiredSession && !options?.removeProtection) {
     throw new Error('This inventory was under a password; saving it as readable text needs an explicit choice');
   }
+  // Checked now, not when the choice was offered: another tab may have set a password since.
+  if (mode.kind === 'browser-plain' && options?.overwriteStale && !storedSaveIsReplaceableByReadable()) throw new ReplaceRefused();
   await saver.setMode(mode, state.doc, { overwriteStale: options?.overwriteStale });
   set({
+    notice: null,
     mode,
     requiredSession: mode.kind === 'browser-encrypted' ? mode.session : mode.kind === 'browser-plain' ? null : state.requiredSession,
   });
@@ -196,17 +203,32 @@ export function commitEdit(): void {
   set({ editsSincePrompt: state.editsSincePrompt + 1 });
 }
 
+export function dismissNotice(): void {
+  set({ notice: null });
+}
+
 export function dismissPrompt(): void {
   set({ editsSincePrompt: 0, promptDismissed: true });
 }
 
-/** Whether the save now in browser storage is password-protected. */
-export function storedSaveIsEncrypted(): boolean {
+/**
+ * Whether the save now in browser storage is empty or a readable inventory this site understands. Anything
+ * else (password-protected, from a newer version, damaged) is not ours to replace with readable text.
+ */
+export function storedSaveIsReplaceableByReadable(): boolean {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw !== null && parseSaved(raw).kind === 'encrypted';
+    return raw === null || parseSaved(raw).kind === 'plain';
   } catch {
-    return false;
+    return false; // fail closed
+  }
+}
+
+/** A readable write over another tab's newer save was refused at the last moment. */
+export class ReplaceRefused extends Error {
+  constructor() {
+    super('The newer save is not a readable inventory this page may replace');
+    this.name = 'ReplaceRefused';
   }
 }
 
@@ -229,11 +251,6 @@ function hasUnsavedWork(): boolean {
   return saveStatus === 'unsaved' || saveStatus === 'saving' || saveStatus === 'failed';
 }
 
-/** In a stale tab, whether this page holds changes that the save does not. */
-export function hasStaleEdits(): boolean {
-  return saver.isStale && state.doc !== savedDoc;
-}
-
 /** Downloads the inventory as a file, under `session` if given, and returns the file name. */
 export async function downloadBackup(session?: SessionKey): Promise<string> {
   const doc = state.doc;
@@ -250,29 +267,23 @@ export function markDownloaded(doc: InventoryDoc): void {
   set({ cleanDoc: doc, hasFile: true });
 }
 
-/**
- * Lock is offered with a password-protected browser save, and in a tab that opened a password-protected
- * save which another tab has since changed (so the password is known but nothing can be written).
- */
+/** Lock is offered whenever a password is held for the inventory in memory: saved under it, or opened from it. */
 export function canLock(): boolean {
-  const { mode, requiredSession } = state;
-  return mode.kind === 'browser-encrypted' || (mode.kind === 'none' && requiredSession !== null && saver.isStale);
+  const { doc, mode, requiredSession } = state;
+  return doc !== null && (mode.kind === 'browser-encrypted' || requiredSession !== null);
 }
 
 /**
- * Clears the inventory and the key from memory. The latest changes are written first, and if
- * they cannot be, nothing is cleared and this rejects, so typed text is never dropped silently.
+ * Clears the inventory and the key from memory. Returns 'confirm', clearing nothing, when this browser does
+ * not hold the latest changes under the password (saving failed, another tab got there first, or nothing is
+ * being saved); the caller asks, and calls again with `discard` to lock anyway.
  */
-async function lock(options?: { discardStale?: boolean }): Promise<void> {
-  if (!state.doc || !canLock()) throw new Error('Lock needs a password-protected browser save');
+async function lock(options?: { discard?: boolean }): Promise<'locked' | 'confirm'> {
+  if (!state.doc || !canLock()) throw new Error('Lock needs a password to protect the inventory');
   flushDraft(); // text typed but not yet added counts as part of the inventory on every path
-  if (saver.isStale) {
-    // Nothing can be written from a stale tab, so the caller must have said the changes may go.
-    if (hasStaleEdits() && !options?.discardStale) throw new Error('Changes on this page are not in the save');
-  } else {
-    await saver.flush();
-    if (state.saveStatus !== 'saved') throw new Error('The latest changes are not saved');
-  }
+  if (state.mode.kind === 'browser-encrypted' && !saver.isStale) await saver.flush();
+  const held = state.doc === savedDoc && (state.mode.kind !== 'none' || saver.isStale);
+  if (!held && !options?.discard) return 'confirm';
   saver.lock();
   savedDoc = null; // nothing readable is kept once the screen is cleared
   let pendingEnvelope: Envelope | null = null;
@@ -280,13 +291,14 @@ async function lock(options?: { discardStale?: boolean }): Promise<void> {
     const parsed = parseSaved(saver.loadRaw() ?? '');
     if (parsed.kind === 'encrypted') pendingEnvelope = parsed.envelope;
   } catch {
-    // The copy is safe in storage; the unlock screen says it could not be read.
+    // Whatever is stored is left as it is; the locked screen says nothing on this page is kept.
   }
   dirty = false;
   set({
     doc: null, locked: true, mode: { kind: 'none' }, pendingEnvelope, cleanDoc: null, hasFile: false, requiredSession: null,
-    editsSincePrompt: 0, promptDismissed: false, route: { name: 'unlock' }, saveStatus: 'unsaved',
+    editsSincePrompt: 0, promptDismissed: false, route: { name: 'unlock' }, saveStatus: 'unsaved', notice: null,
   });
+  return 'locked';
 }
 
 /** Opens the inventory an unlocked save held, and keeps saving it under the same password. */
@@ -317,12 +329,17 @@ export async function openDocument(doc: InventoryDoc, fileSession?: SessionKey):
   if (previous.kind !== 'none') saver.lock();
   dirty = false;
   set({
-    doc, pendingEnvelope: null, locked: false, loadProblem: null, mode: { kind: 'none' }, saveStatus: 'unsaved',
+    doc, pendingEnvelope: null, locked: false, loadProblem: null, mode: { kind: 'none' }, saveStatus: 'unsaved', notice: null,
     requiredSession: fileSession ?? null, cleanDoc: doc, hasFile: true, editsSincePrompt: 0, promptDismissed: false,
   });
   go({ name: 'home' });
   if (target.kind === 'none') return;
-  await setSaveMode(target);
+  try {
+    await setSaveMode(target);
+  } catch {
+    // The file is open but nothing is being saved here; this stays on screen until dismissed.
+    set({ notice: saveCopy.openedNotSaved });
+  }
 }
 
 /**
@@ -342,7 +359,7 @@ export function eraseBrowserData(keepOpen: boolean): boolean {
     savedDoc = null;
     set({
       doc: null, pendingEnvelope: null, locked: false, loadProblem: null, cleanDoc: null, hasFile: false, requiredSession: null,
-      editsSincePrompt: 0, promptDismissed: false,
+      editsSincePrompt: 0, promptDismissed: false, notice: null,
     });
     go({ name: 'welcome' });
   }

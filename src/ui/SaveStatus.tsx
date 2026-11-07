@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import { saveCopy } from '../content/copy';
 import type { SaveStatus as Status } from '../core/saver';
-import { canLock, downloadBackup, flushDraft, hasStaleEdits, useApp, type AppState } from './store';
+import { canLock, downloadBackup, flushDraft, useApp, type AppState } from './store';
 
 const SAVER_TEXT: Record<Status, string> = {
   unsaved: saveCopy.status.pending,
@@ -40,18 +40,17 @@ export function LockButton() {
   const [error, setError] = useState(false);
   if (!canLock()) return null;
   const session = state.mode.kind === 'browser-encrypted' ? state.mode.session : state.requiredSession;
-  const go = (discardStale: boolean) => {
+  const go = (discard: boolean) => {
     setFailed(false);
     setAsking(false);
-    lock({ discardStale }).catch(() => setFailed(true));
+    flushDraft(); // typed text counts before deciding whether anything would be lost
+    lock({ discard })
+      .then((result) => { if (result === 'confirm') setAsking(true); })
+      .catch(() => setFailed(true));
   };
   return (
     <>
-      <button type="button" onClick={() => {
-          flushDraft(); // typed text counts before deciding whether anything would be lost
-          if (hasStaleEdits()) setAsking(true);
-          else go(false);
-        }}>{saveCopy.labels.lock}</button>
+      <button type="button" onClick={() => go(false)}>{saveCopy.labels.lock}</button>
       {failed && <p class="notice alert wide" role="alert">{saveCopy.lockFailed}</p>}
       {error && <p class="notice alert wide" role="alert">{saveCopy.downloadFailed}</p>}
       {asking && (

@@ -15,7 +15,7 @@ import { Welcome } from './screens/Welcome';
 import { routeHash, type Route } from './router';
 import { SavePrompt } from './SavePrompt';
 import { LockButton, SaveStatus } from './SaveStatus';
-import { useApp } from './store';
+import { dismissNotice, useApp } from './store';
 
 /** Screens other tasks add; each shows a plain placeholder until then. */
 function Placeholder({ title }: { title: string }) {
@@ -84,6 +84,12 @@ export function App() {
       </header>
       {saver.isStale && (
         <p class="notice alert" role="alert">{saveCopy.staleBanner}</p>
+      )}
+      {state.notice && (
+        <div class="notice alert" role="alert">
+          <p>{state.notice}</p>
+          <p class="actions"><button type="button" onClick={dismissNotice}>Dismiss</button></p>
+        </div>
       )}
       <SavePrompt />
       <main ref={main}>

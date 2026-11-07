@@ -116,7 +116,9 @@ export const saveCopy = {
     "No one can reset it, and the saved copy can't be read without it. If you have a downloaded file, you can open that instead. Otherwise you can erase the saved copy and start over.",
   lockStaleHeading: 'Lock and lose your latest changes?',
   lockStaleText:
-    'Another tab saved a newer version, so changes made on this page since then are not saved and will be lost if you lock. Download a file first if you want to keep them.',
+    "The latest changes on this page aren't saved in this browser under your password (saving failed, another tab saved a newer version, or nothing is being saved here), so they will be lost if you lock. Download a file first if you want to keep them.",
+  lockedNothingKept:
+    'Locked. Nothing from your inventory is kept on this page now. The copy saved in this browser has not been changed. Reload this page to open it, or open a downloaded file.',
   lockStaleYes: 'Lock and discard those changes',
   lockFailed:
     "Couldn't lock, because the latest changes couldn't be saved. Nothing was cleared. Download a file to keep your work, then try again.",

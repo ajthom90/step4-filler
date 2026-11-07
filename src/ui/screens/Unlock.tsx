@@ -48,7 +48,7 @@ export function Unlock() {
           </p>
         </form>
       ) : (
-        <p class="notice alert" role="alert">{saveCopy.unlockProblem}</p>
+        <p class="notice">{state.locked ? saveCopy.lockedNothingKept : saveCopy.unlockProblem}</p>
       )}
       <h2>{saveCopy.forgotHeading}</h2>
       <p>{saveCopy.forgotText}</p>

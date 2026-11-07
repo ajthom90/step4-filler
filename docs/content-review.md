@@ -213,7 +213,9 @@ How it behaves, for context:
 - If another tab changed the save, this page never overwrites it on its own. Reloading is the default; replacing it is a separate, confirmed step that covers one save only.
 - Opening a password-protected file over a readable browser save switches the browser save to that file's password, so its contents are never written as readable text.
 - Opening a password-protected file stops browser saving first and resumes it only after the password-protected write succeeds. If that fails, nothing is saved in the browser, the old browser copy is untouched, and saving it as readable text needs an explicit choice that shows the warning.
-- A tab that is behind another tab's newer save never replaces a password-protected save with readable text; it offers reload and a download only.
+- Lock is offered whenever a password is held for the inventory on screen. If the browser does not hold the latest changes under that password (saving failed, another tab saved a newer version, or nothing is being saved), Lock first warns that those changes will be lost and offers a password-protected download.
+- A file opened but not saved in this browser leaves a message on screen until it is dismissed or a later save works.
+- A tab that is behind another tab's newer save never replaces a password-protected save with readable text; it offers reload and a download only. This is checked again at the moment of saving, and any newer save that is password-protected, from a newer version, or unreadable is left alone.
 - Stopping browser saving deletes the saved copy, so a readable copy is never left behind unknowingly.
 
 | Name in copy.ts | Wording |
@@ -290,7 +292,8 @@ How it behaves, for context:
 | forgotHeading | Forgot your password? |
 | forgotText | No one can reset it, and the saved copy can't be read without it. If you have a downloaded file, you can open that instead. Otherwise you can erase the saved copy and start over. |
 | lockStaleHeading | Lock and lose your latest changes? |
-| lockStaleText | Another tab saved a newer version, so changes made on this page since then are not saved and will be lost if you lock. Download a file first if you want to keep them. |
+| lockStaleText | The latest changes on this page aren't saved in this browser under your password (saving failed, another tab saved a newer version, or nothing is being saved here), so they will be lost if you lock. Download a file first if you want to keep them. |
+| lockedNothingKept | Locked. Nothing from your inventory is kept on this page now. The copy saved in this browser has not been changed. Reload this page to open it, or open a downloaded file. |
 | lockStaleYes | Lock and discard those changes |
 | lockFailed | Couldn't lock, because the latest changes couldn't be saved. Nothing was cleared. Download a file to keep your work, then try again. |
 | lockUnavailable | Lock is only available when the inventory is saved in this browser with a password. |
