@@ -41,6 +41,9 @@ export const saveCopy = {
   intro: 'Nothing is ever sent to a server.',
   rightNow: {
     none: 'Right now: not saved in this browser. Your work is only on this page.',
+    opened: 'Right now: not saved in this browser. Nothing has changed since you opened your file.',
+    downloaded: 'Right now: not saved in this browser. You downloaded a file, and nothing has changed since.',
+    changed: 'Right now: not saved in this browser. Changes since your file are only on this page.',
     plain: 'Right now: saved in this browser as readable text.',
     encrypted: 'Right now: saved in this browser with a password.',
     unavailable: "This browser isn't letting the site store anything, so saving in this browser isn't available. You can still download a file.",
@@ -223,9 +226,18 @@ export const saveCopy = {
     earnestPage: 'page 70',
     sexPage: 'page 69',
   },
+  /** The notice on the home screen while nothing is saved in this browser, by where the work is. */
+  home: {
+    none: 'Not saved yet. Your work is only in this open page.',
+    opened: 'Not saved in this browser. Nothing has changed since you opened your file.',
+    downloaded: 'Not saved in this browser. You downloaded a file, and nothing has changed since.',
+    changed: 'Not saved in this browser. Changes since your file are only on this page.',
+    link: 'Choose how to save it',
+  },
   status: {
     none: 'Not saved. Your work is only on this page.',
     matchesFile: 'Matches your file. No changes since.',
+    downloaded: 'Downloaded a file. No changes since.',
     changedSinceDownload: 'Unsaved changes since your file',
     pending: 'Changes not saved yet',
     saving: 'Saving…',

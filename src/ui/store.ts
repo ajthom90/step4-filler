@@ -27,8 +27,12 @@ export interface AppState {
   requiredSession: SessionKey | null;
   /** The version of the inventory that matches a copy outside this page (a file), or that has never been edited. */
   cleanDoc: InventoryDoc | null;
-  /** Whether cleanDoc was downloaded or opened as a file, as opposed to never having been edited. */
-  hasFile: boolean;
+  /**
+   * Where cleanDoc came from: a file opened here, a file downloaded from here, or neither (null, never edited).
+   * A download can be cancelled in the browser's own window without the page knowing, so it is never
+   * treated as a copy that is certainly kept.
+   */
+  fileSource: 'opened' | 'downloaded' | null;
   locked: boolean;
   /** What browser storage held when Lock was used, unless it was a password-protected save (see pendingEnvelope). */
   lockedStored: LockedStored | null;
@@ -106,7 +110,7 @@ function start(): void {
     promptDismissed: false,
     requiredSession: null,
     cleanDoc: null,
-    hasFile: false,
+    fileSource: null,
     locked: false,
     lockedStored: null,
     loadProblem: null,
@@ -287,9 +291,10 @@ export function currentState(): AppState {
 
 /** Work that exists only on this page: nothing saved, nothing downloaded since the last change. */
 function hasUnsavedWork(): boolean {
-  const { doc, mode, saveStatus, cleanDoc } = state;
+  const { doc, mode, saveStatus, cleanDoc, fileSource } = state;
   if (!doc) return false;
-  if (mode.kind === 'none') return doc !== cleanDoc;
+  // A download may have been cancelled, so only an opened file is known to hold the work.
+  if (mode.kind === 'none') return doc !== cleanDoc || fileSource === 'downloaded';
   // A stale tab never writes, so anything changed here since the last save is lost on leaving.
   if (saver.isStale) return doc !== savedDoc;
   return saveStatus === 'unsaved' || saveStatus === 'saving' || saveStatus === 'failed';
@@ -302,13 +307,9 @@ export async function downloadBackup(session?: SessionKey): Promise<string> {
   const text = await saver.fileContents(doc, session);
   const name = backupFileName(new Date());
   downloadText(name, text);
-  markDownloaded(doc);
+  // Lock, erase or an opened file may have replaced the inventory meanwhile; it must not come back here.
+  if (state.doc === doc) set({ cleanDoc: doc, fileSource: 'downloaded' });
   return name;
-}
-
-/** A downloaded file now matches this version of the inventory. */
-export function markDownloaded(doc: InventoryDoc): void {
-  set({ cleanDoc: doc, hasFile: true });
 }
 
 /** Lock is offered whenever a password is held for the inventory in memory: saved under it, or opened from it. */
@@ -350,7 +351,7 @@ async function lock(options?: { discard?: boolean }): Promise<'locked' | 'confir
   saver.loadRaw(); // what is stored is the saver's new baseline, and is left as it is
   dirty = false;
   set({
-    doc: null, locked: true, ...readStoredForLock(), mode: { kind: 'none' }, cleanDoc: null, hasFile: false, requiredSession: null,
+    doc: null, locked: true, ...readStoredForLock(), mode: { kind: 'none' }, cleanDoc: null, fileSource: null, requiredSession: null,
     editsSincePrompt: 0, promptDismissed: false, route: { name: 'unlock' }, saveStatus: 'unsaved', notice: null,
   });
   return 'locked';
@@ -362,7 +363,7 @@ export function unlockWith(doc: InventoryDoc, session: SessionKey): void {
   const route: Route = wanted.name === 'unlock' ? { name: 'home' } : wanted;
   dirty = false;
   savedDoc = doc;
-  set({ doc, pendingEnvelope: null, locked: false, lockedStored: null, cleanDoc: doc, hasFile: false, editsSincePrompt: 0, promptDismissed: false, route });
+  set({ doc, pendingEnvelope: null, locked: false, lockedStored: null, cleanDoc: doc, fileSource: null, editsSincePrompt: 0, promptDismissed: false, route });
   if (wanted.name === 'unlock') go(route);
   // The save was just read; resuming leaves its bytes untouched, and a stale one stays unwritten.
   resumeSaving({ kind: 'browser-encrypted', session });
@@ -385,7 +386,7 @@ export async function openDocument(doc: InventoryDoc, fileSession?: SessionKey):
   dirty = false;
   set({
     doc, pendingEnvelope: null, locked: false, lockedStored: null, loadProblem: null, mode: { kind: 'none' }, saveStatus: 'unsaved', notice: null,
-    requiredSession: fileSession ?? null, cleanDoc: doc, hasFile: true, editsSincePrompt: 0, promptDismissed: false,
+    requiredSession: fileSession ?? null, cleanDoc: doc, fileSource: 'opened', editsSincePrompt: 0, promptDismissed: false,
   });
   go({ name: 'home' });
   if (target.kind === 'none') return;
@@ -408,12 +409,12 @@ export function eraseBrowserData(keepOpen: boolean): boolean {
   set({ mode: { kind: 'none' }, saveStatus: 'unsaved' });
   if (stillThere) return false;
   // With no file copy, the deleted save was the only one: leaving must warn.
-  if (keepOpen && !state.hasFile) set({ cleanDoc: null });
+  if (keepOpen && state.fileSource === null) set({ cleanDoc: null });
   if (!keepOpen) {
     dirty = false;
     savedDoc = null;
     set({
-      doc: null, pendingEnvelope: null, locked: false, lockedStored: null, loadProblem: null, cleanDoc: null, hasFile: false, requiredSession: null,
+      doc: null, pendingEnvelope: null, locked: false, lockedStored: null, loadProblem: null, cleanDoc: null, fileSource: null, requiredSession: null,
       editsSincePrompt: 0, promptDismissed: false, notice: null,
     });
     go({ name: 'welcome' });
@@ -424,7 +425,7 @@ export function eraseBrowserData(keepOpen: boolean): boolean {
 /** Starts an inventory in memory only. Nothing is stored until a save method is chosen. */
 export function startInventory(doc: InventoryDoc): void {
   dirty = false;
-  set({ doc, cleanDoc: doc, hasFile: false, route: { name: 'home' } });
+  set({ doc, cleanDoc: doc, fileSource: null, route: { name: 'home' } });
   go({ name: 'home' });
 }
 

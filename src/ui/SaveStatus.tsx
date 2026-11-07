@@ -11,15 +11,27 @@ const SAVER_TEXT: Record<Status, string> = {
   stale: saveCopy.status.stale,
 };
 
+/** Where the work is while nothing is saved in this browser: no file yet, a file unchanged since, or changes since a file. */
+export type FileState = 'none' | 'opened' | 'downloaded' | 'changed';
+
+export function fileState(state: AppState): FileState {
+  const { doc, cleanDoc, fileSource } = state;
+  if (fileSource === null) return 'none';
+  return doc !== cleanDoc ? 'changed' : fileSource;
+}
+
+const FILE_STATUS: Record<FileState, string> = {
+  none: saveCopy.status.none,
+  opened: saveCopy.status.matchesFile,
+  downloaded: saveCopy.status.downloaded,
+  changed: saveCopy.status.changedSinceDownload,
+};
+
 /** What the header says about where the work is. It never says "saved" before a save has happened. */
 export function statusText(state: AppState): string {
-  const { mode, saveStatus, doc, cleanDoc, hasFile } = state;
+  const { mode, saveStatus } = state;
   if (saveStatus === 'failed' || saveStatus === 'stale') return SAVER_TEXT[saveStatus];
-  if (mode.kind === 'none') {
-    const changed = doc !== cleanDoc;
-    if (!hasFile) return saveCopy.status.none;
-    return changed ? saveCopy.status.changedSinceDownload : saveCopy.status.matchesFile;
-  }
+  if (mode.kind === 'none') return FILE_STATUS[fileState(state)];
   if (saveStatus === 'saved' && mode.kind === 'browser-encrypted') return saveCopy.status.encrypted;
   return SAVER_TEXT[saveStatus];
 }

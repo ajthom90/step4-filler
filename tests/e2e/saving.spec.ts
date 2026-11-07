@@ -320,12 +320,90 @@ test('file-only use warns before leaving and shows the unsaved indicator', async
   await expect(status(page)).toContainText('Not saved')
   await goTo(page, '#/save')
   await download(page, 'Download a file without a password')
-  await expect(status(page)).toContainText('Matches your file')
-  expect(await leaving(page)).toBe(false)
+  // The download may have been cancelled in the browser's own window, which the page can't see.
+  await expect(status(page)).toHaveText(saveCopy.status.downloaded)
+  expect(await leaving(page)).toBe(true)
+  await expect(main(page)).toContainText(saveCopy.rightNow.downloaded)
+  await goTo(page, '#/home')
+  await expect(main(page)).toContainText(saveCopy.home.downloaded)
+  await expect(main(page)).not.toContainText(saveCopy.home.none)
   await goTo(page, LIST)
   await addName(page, 'Changed after download')
   expect(await leaving(page)).toBe(true)
   await expect(status(page)).toContainText('Unsaved changes')
+  await goTo(page, '#/home')
+  await expect(main(page)).toContainText(saveCopy.home.changed)
+  await goTo(page, '#/save')
+  await expect(main(page)).toContainText(saveCopy.rightNow.changed)
+})
+
+test('a file opened and not changed says so, and leaving does not ask', async ({ page }) => {
+  await page.goto('/')
+  await openFile(page, { name: 'incoming.json', buffer: Buffer.from(JSON.stringify(emptyDoc('food', { kind: 'god', custom: '' }))) })
+  await expect(page.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+  await expect(status(page)).toHaveText(saveCopy.status.matchesFile)
+  await expect(main(page)).toContainText(saveCopy.home.opened)
+  await expect(main(page)).not.toContainText(saveCopy.home.none)
+  expect(await leaving(page)).toBe(false)
+  await goTo(page, '#/save')
+  await expect(main(page)).toContainText(saveCopy.rightNow.opened)
+})
+
+test('a fresh inventory says its work is only on this page, on home and on the save screen', async ({ page }) => {
+  await begin(page)
+  await expect(main(page)).toContainText(saveCopy.home.none)
+  await goTo(page, '#/save')
+  await expect(main(page)).toContainText(saveCopy.rightNow.none)
+})
+
+test('a download that fails says the file could not be made, not that saving failed', async ({ page }) => {
+  await page.addInitScript(() => {
+    URL.createObjectURL = () => { throw new Error('no blobs here') }
+  })
+  await beginWithSentinel(page)
+  await goTo(page, '#/save')
+  await page.getByRole('button', { name: 'Download a file without a password' }).click()
+  await expect(page.getByRole('alert')).toHaveText(saveCopy.downloadFailed)
+  await expect(main(page)).not.toContainText(saveCopy.saveFailed)
+  await expect(status(page)).toHaveText(saveCopy.status.none)
+})
+
+test('S2: a download finishing after Lock leaves nothing readable in the page heap', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'uses a Chrome DevTools heap snapshot')
+  const HEAP = 'Heap-Sentinel-6642'
+  await begin(page)
+  await goTo(page, LIST)
+  await addName(page, HEAP)
+  await saveInBrowser(page, 'password')
+  await page.waitForTimeout(1200) // saved, so Lock clears at once
+  // Hold the next encryption (the download's) until the test lets it go.
+  await page.evaluate(() => {
+    const w = window as unknown as { __release: () => void }
+    const original = crypto.subtle.encrypt.bind(crypto.subtle)
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((r) => { release = r })
+    w.__release = release
+    crypto.subtle.encrypt = (async (...args: Parameters<typeof original>) => {
+      await gate
+      return original(...args)
+    }) as typeof crypto.subtle.encrypt
+  })
+  await page.getByRole('button', { name: 'Download a file with a password' }).click()
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await page.evaluate(() => (window as unknown as { __release: () => void }).__release())
+  await page.waitForTimeout(300) // the download finishes
+  await page.getByLabel('Password', { exact: true }).fill('x') // later renders, as any real use has
+  await page.getByLabel('Password', { exact: true }).fill('xy')
+  await page.waitForTimeout(200)
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('HeapProfiler.enable')
+  await cdp.send('HeapProfiler.collectGarbage')
+  await cdp.send('HeapProfiler.collectGarbage')
+  let snapshot = ''
+  cdp.on('HeapProfiler.addHeapSnapshotChunk', (e) => { snapshot += e.chunk })
+  await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false })
+  expect(snapshot.includes(`"${HEAP}"`)).toBe(false)
 })
 
 test('Lock clears the screen and requires the password again', async ({ page }) => {

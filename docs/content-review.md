@@ -219,6 +219,7 @@ How it behaves, for context:
 - A file opened but not saved in this browser leaves a message on screen until it is dismissed or a later save works.
 - A tab that is behind another tab's newer save never replaces a password-protected save with readable text; it offers reload and a download only. This is checked again at the moment of saving, and any newer save that is password-protected, from a newer version, or unreadable is left alone.
 - Stopping browser saving deletes the saved copy, so a readable copy is never left behind unknowingly.
+- While nothing is saved in this browser, the header, the home notice (`home.*`) and the save screen (`rightNow.*`) say the same thing: no file yet, a file opened and unchanged, a file downloaded and unchanged, or changes since the file. A download can be cancelled in the browser's own window, which the site can't see, so after a download the header says "Downloaded a file" rather than that the page matches it, and leaving the page still asks first.
 - If the save in this browser can't be read when the site opens (`problemHeading`), it is left untouched, and the screen offers opening a downloaded file and erasing the saved copy (erasing asks first). If a file is opened instead, the first save in this browser asks before it replaces the copy that couldn't be read (`replaceDamagedHeading`).
 
 | Name in copy.ts | Wording |
@@ -226,6 +227,9 @@ How it behaves, for context:
 | title | Save your progress |
 | intro | Nothing is ever sent to a server. |
 | rightNow.none | Right now: not saved in this browser. Your work is only on this page. |
+| rightNow.opened | Right now: not saved in this browser. Nothing has changed since you opened your file. |
+| rightNow.downloaded | Right now: not saved in this browser. You downloaded a file, and nothing has changed since. |
+| rightNow.changed | Right now: not saved in this browser. Changes since your file are only on this page. |
 | rightNow.plain | Right now: saved in this browser as readable text. |
 | rightNow.encrypted | Right now: saved in this browser with a password. |
 | rightNow.unavailable | This browser isn't letting the site store anything, so saving in this browser isn't available. You can still download a file. |
@@ -335,8 +339,14 @@ How it behaves, for context:
 | replaceDamagedText | This browser still holds a saved copy that this site couldn't read. Saving here replaces it for good. Only do this if you don't need that copy. |
 | replaceDamagedYes | Replace it and save |
 | replaceDamagedKeep | Keep it for now |
+| home.none | Not saved yet. Your work is only in this open page. |
+| home.opened | Not saved in this browser. Nothing has changed since you opened your file. |
+| home.downloaded | Not saved in this browser. You downloaded a file, and nothing has changed since. |
+| home.changed | Not saved in this browser. Changes since your file are only on this page. |
+| home.link | Choose how to save it |
 | status.none | Not saved. Your work is only on this page. |
 | status.matchesFile | Matches your file. No changes since. |
+| status.downloaded | Downloaded a file. No changes since. |
 | status.changedSinceDownload | Unsaved changes since your file |
 | status.pending | Changes not saved yet |
 | status.saving | Saving… |

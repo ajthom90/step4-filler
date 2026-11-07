@@ -3,6 +3,8 @@ import { blanks, type InventoryId } from '../../core/flow';
 import { routeHash } from '../router';
 import { stepLabel } from '../stepCopy';
 import { INVENTORY_BLURBS, INVENTORY_TITLES, progressLabel } from '../stepInfo';
+import { saveCopy } from '../../content/copy';
+import { fileState } from '../SaveStatus';
 import { useApp } from '../store';
 import { OpenFile } from './Save';
 
@@ -35,7 +37,7 @@ export function Home() {
       <h1 tabIndex={-1}>Your inventory</h1>
       {state.mode.kind === 'none' && (
         <p class="notice">
-          Not saved yet. Your work is only in this open page. <a href="#/save">Choose how to save it</a>.
+          {saveCopy.home[fileState(state)]} <a href="#/save">{saveCopy.home.link}</a>.
         </p>
       )}
       <ul class="plain sections">

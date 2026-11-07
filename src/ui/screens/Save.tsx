@@ -4,6 +4,7 @@ import type { SaveMode } from '../../core/saver';
 import { createKey, decrypt, type Envelope, type SessionKey } from '../../core/crypto';
 import type { InventoryDoc } from '../../core/doc';
 import { Confirm, useFocusReturn } from '../Confirm';
+import { fileState } from '../SaveStatus';
 import { isOfflineFile } from '../offline';
 import { MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
 import { FileError } from '../../core/validate';
@@ -15,7 +16,12 @@ const MIN_PASSWORD = 8;
 
 type Message = { kind: 'ok' | 'error'; text: string } | null;
 
-/** Why a save or download did not happen, in words for the person. */
+/** Why a download did not happen, in words for the person. */
+function downloadFailureText(err: unknown): string {
+  return err instanceof FileError && err.code === 'too-large' ? saveCopy.tooLarge : saveCopy.downloadFailed;
+}
+
+/** Why a save did not happen, in words for the person. */
 function failureText(err: unknown): string {
   if (err instanceof FileError && err.code === 'too-large') return saveCopy.tooLarge;
   if (err instanceof ReplaceRefused) return saveCopy.staleNoReplace;
@@ -220,13 +226,13 @@ export function Save() {
     setAsking(null);
   };
 
-  const run = async (task: () => Promise<string>) => {
+  const run = async (task: () => Promise<string>, explain: (err: unknown) => string = failureText) => {
     setMessage(null);
     setBusy(true);
     try {
       setMessage({ kind: 'ok', text: await task() });
     } catch (err) {
-      setMessage({ kind: 'error', text: failureText(err) });
+      setMessage({ kind: 'error', text: explain(err) });
     } finally {
       setBusy(false);
     }
@@ -268,7 +274,7 @@ export function Save() {
     void run(async () => {
       const session = encrypted ? mode.session : held ?? (withPassword ? await createKey(password) : undefined);
       return saveCopy.downloaded(await downloadBackup(session));
-    });
+    }, downloadFailureText);
   };
 
   /** The confirmed replace of a newer save. With a mode in use it writes now; otherwise the next save may. */
@@ -312,7 +318,7 @@ export function Save() {
   const heldSession = encrypted ? mode.session : mode.kind === 'none' ? state.requiredSession : null;
   const canReplace = !stale || heldSession !== null || storedSaveIsReplaceableByReadable();
   const browserOk = saver.browserSaveAvailable;
-  const where = mode.kind === 'none' ? saveCopy.rightNow.none : encrypted ? saveCopy.rightNow.encrypted : saveCopy.rightNow.plain;
+  const where = mode.kind === 'none' ? saveCopy.rightNow[fileState(state)] : encrypted ? saveCopy.rightNow.encrypted : saveCopy.rightNow.plain;
 
   return (
     <>
