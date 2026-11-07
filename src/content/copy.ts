@@ -140,7 +140,8 @@ export const saveCopy = {
   replaceBrowserEncrypted:
     "Opening this file replaces your current inventory and the copy saved in this browser. The browser copy will then be protected with this file's password, not saved as readable text. Download a file first if you want to keep your current work.",
   replaceYes: 'Replace and open',
-  openedNotSaved: "The file is open, but it couldn't be saved in this browser. Your work is still open on this page.",
+  openedNotSaved:
+    "The file is open, but it wasn't saved in this browser. The file is still your copy, and the copy saved in this browser is unchanged. Nothing is saved here until you choose how.",
   eraseHeading: 'Erase everything',
   eraseText:
     "This deletes your inventory from this browser and closes it on this page. It can't delete files you have already downloaded or printed, or copies in your device's backups. " +

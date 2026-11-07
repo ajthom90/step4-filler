@@ -693,3 +693,123 @@ test('review 7: Lock in a stale tab locks at once without edits, and warns first
   await expect(second.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
   await third.close()
 })
+
+const SECRET = 'Secret-C-4417'
+const FILE_PASSWORD = 'file passphrase here'
+
+/** An encrypted file holding SECRET, made in a separate browser context so no storage is shared. */
+async function secretFile(browser: import('@playwright/test').Browser) {
+  const other = await browser.newContext()
+  const pageB = await other.newPage()
+  await begin(pageB)
+  await goTo(pageB, LIST)
+  await addName(pageB, SECRET)
+  await goTo(pageB, '#/save')
+  await pageB.getByLabel('Password', { exact: true }).fill(FILE_PASSWORD)
+  await pageB.getByLabel('Type it again').fill(FILE_PASSWORD)
+  const file = await download(pageB, 'Download a file with a password')
+  await other.close()
+  return file
+}
+
+/** Records every value written to storage, and fails writes while window.__fail is true. */
+async function spyOnWrites(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __writes: string[]; __fail: boolean }
+    w.__writes = []
+    w.__fail = false
+    const original = Storage.prototype.setItem
+    Storage.prototype.setItem = function (k: string, v: string) {
+      w.__writes.push(v)
+      if (w.__fail) throw new DOMException('full', 'QuotaExceededError')
+      return original.call(this, k, v)
+    }
+  })
+}
+const writes = (page: Page) => page.evaluate(() => (window as unknown as { __writes: string[] }).__writes)
+const failWrites = (page: Page, on: boolean) => page.evaluate((v) => { (window as unknown as { __fail: boolean }).__fail = v }, on)
+
+async function openSecretOverPlain(page: Page, file: { name: string; text: string }) {
+  await goTo(page, '#/home')
+  await openFile(page, { name: file.name, buffer: Buffer.from(file.text) })
+  await page.getByLabel('Password for this file').fill(FILE_PASSWORD)
+  await page.getByRole('button', { name: 'Open file' }).click()
+  await page.getByRole('group', { name: saveCopy.replaceHeading }).getByRole('button', { name: 'Replace and open' }).click()
+}
+
+test('S1: a failed upgrade to the file password leaves the old save alone and never writes readable text', async ({ page, browser }) => {
+  const file = await secretFile(browser)
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  const old = await stored(page)
+  await spyOnWrites(page)
+  await failWrites(page, true)
+  await openSecretOverPlain(page, file)
+  await expect(page.getByRole('alert')).toContainText(saveCopy.openedNotSaved)
+  await expect(status(page)).not.toContainText('Saved')
+  await goTo(page, LIST)
+  await expect(page.getByRole('list', { name: 'Your list' })).toContainText(SECRET)
+  await addName(page, 'Later-Edit')
+  await failWrites(page, false) // storage recovers
+  await page.waitForTimeout(1500)
+  expect(await stored(page)).toBe(old)
+  expect((await writes(page)).filter((w) => w.includes(SECRET) || w.includes('Later-Edit'))).toEqual([])
+  // Saving it as readable text is only possible as an explicit choice that shows the warning.
+  await goTo(page, '#/save')
+  await page.getByRole('button', { name: 'Save in this browser without a password' }).click()
+  await expect(page.getByRole('group', { name: saveCopy.removeHeading })).toContainText(PLAIN_WARNING)
+  await page.getByRole('button', { name: saveCopy.removeKeep }).click()
+  await page.waitForTimeout(300)
+  expect((await writes(page)).filter((w) => w.includes(SECRET))).toEqual([])
+  expect(await stored(page)).toBe(old)
+})
+
+test('S1: a stale save during the upgrade, then replacing the newer save, still never writes readable text', async ({ page, browser, context }) => {
+  const file = await secretFile(browser)
+  await beginWithSentinel(page)
+  await saveInBrowser(page, 'plain')
+  const second = await context.newPage()
+  await second.goto(`/${LIST}`)
+  await expect(second.getByLabel('A person, institution, or principle')).toBeVisible()
+  await addName(second, 'From-Second-Tab')
+  await expect(status(page)).toContainText('Changed in another tab')
+  await spyOnWrites(page)
+  await openSecretOverPlain(page, file)
+  await expect(page.getByRole('alert').first()).toBeVisible()
+  await goTo(page, LIST)
+  await addName(page, 'Later-Edit')
+  await page.waitForTimeout(1500)
+  expect(await stored(page)).toContain('From-Second-Tab')
+  expect((await writes(page)).filter((w) => w.includes(SECRET) || w.includes('Later-Edit'))).toEqual([])
+
+  await goTo(page, '#/save')
+  await main(page).getByRole('button', { name: saveCopy.staleReplace }).click()
+  await main(page).getByRole('group', { name: saveCopy.staleReplaceHeading }).getByRole('button', { name: saveCopy.staleReplaceYes }).click()
+  await expect(main(page)).toContainText(saveCopy.savedBrowserEncrypted)
+  expect(JSON.parse((await stored(page)) as string).format).toBe('step4-inventory-encrypted')
+  expect((await writes(page)).filter((w) => w.includes(SECRET) || w.includes('Later-Edit'))).toEqual([])
+  await second.close()
+})
+
+test('S2: nothing readable stays in the page heap after Lock', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'uses a Chrome DevTools heap snapshot')
+  const HEAP = 'Heap-Sentinel-5521'
+  await begin(page)
+  await goTo(page, LIST)
+  await addName(page, HEAP)
+  await saveInBrowser(page, 'password')
+  await page.waitForTimeout(1200) // saved, so the last written copy is the one on record
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await page.getByLabel('Password', { exact: true }).fill('x') // later renders, as any real use has
+  await page.getByLabel('Password', { exact: true }).fill('xy')
+  await page.waitForTimeout(200)
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('HeapProfiler.enable')
+  await cdp.send('HeapProfiler.collectGarbage')
+  await cdp.send('HeapProfiler.collectGarbage')
+  let snapshot = ''
+  cdp.on('HeapProfiler.addHeapSnapshotChunk', (e) => { snapshot += e.chunk })
+  await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false })
+  expect(snapshot.includes(`"${HEAP}"`)).toBe(false) // as a string of its own, the way an entry's name is held
+})

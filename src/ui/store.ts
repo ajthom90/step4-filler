@@ -16,6 +16,11 @@ export interface AppState {
   editsSincePrompt: number;
   /** True once the prompt has been dismissed, so it comes back after SAVE_REPROMPT_EVERY edits, not SAVE_PROMPT_AFTER. */
   promptDismissed: boolean;
+  /**
+   * Set once this inventory has been under a password: any browser save of it must use this session,
+   * and a readable save needs the explicit remove-protection choice. Cleared with the inventory.
+   */
+  requiredSession: SessionKey | null;
   /** The version of the inventory that matches a copy outside this page (a file), or that has never been edited. */
   cleanDoc: InventoryDoc | null;
   /** Whether cleanDoc was downloaded or opened as a file, as opposed to never having been edited. */
@@ -86,6 +91,7 @@ function start(): void {
     mode: { kind: 'none' },
     editsSincePrompt: 0,
     promptDismissed: false,
+    requiredSession: null,
     cleanDoc: null,
     hasFile: false,
     locked: false,
@@ -138,7 +144,7 @@ function start(): void {
 function resumeSaving(mode: SaveMode): void {
   try {
     saver.resume(mode);
-    state = { ...state, mode };
+    state = { ...state, mode, requiredSession: mode.kind === 'browser-encrypted' ? mode.session : state.requiredSession };
   } catch {
     // Stale: the status already says so, and only an explicit replace can write.
   }
@@ -148,10 +154,19 @@ function resumeSaving(mode: SaveMode): void {
  * Chooses how the inventory is kept. `overwriteStale` is for an explicit user action only:
  * it replaces a newer save from another tab.
  */
-export async function setSaveMode(mode: SaveMode, options?: { overwriteStale?: boolean }): Promise<void> {
+export async function setSaveMode(
+  mode: SaveMode,
+  options?: { overwriteStale?: boolean; removeProtection?: boolean },
+): Promise<void> {
   if (!state.doc) throw new Error('There is no inventory to save');
-  await saver.setMode(mode, state.doc, options);
-  set({ mode });
+  if (mode.kind === 'browser-plain' && state.requiredSession && !options?.removeProtection) {
+    throw new Error('This inventory was under a password; saving it as readable text needs an explicit choice');
+  }
+  await saver.setMode(mode, state.doc, { overwriteStale: options?.overwriteStale });
+  set({
+    mode,
+    requiredSession: mode.kind === 'browser-encrypted' ? mode.session : mode.kind === 'browser-plain' ? null : state.requiredSession,
+  });
 }
 
 function go(route: Route): void {
@@ -233,6 +248,7 @@ async function lock(options?: { discardStale?: boolean }): Promise<void> {
     if (state.saveStatus !== 'saved') throw new Error('The latest changes are not saved');
   }
   saver.lock();
+  savedDoc = null; // nothing readable is kept once the screen is cleared
   let pendingEnvelope: Envelope | null = null;
   try {
     const parsed = parseSaved(saver.loadRaw() ?? '');
@@ -242,7 +258,7 @@ async function lock(options?: { discardStale?: boolean }): Promise<void> {
   }
   dirty = false;
   set({
-    doc: null, locked: true, mode: { kind: 'none' }, pendingEnvelope, cleanDoc: null, hasFile: false,
+    doc: null, locked: true, mode: { kind: 'none' }, pendingEnvelope, cleanDoc: null, hasFile: false, requiredSession: null,
     editsSincePrompt: 0, promptDismissed: false, route: { name: 'unlock' }, saveStatus: 'unsaved',
   });
 }
@@ -266,16 +282,21 @@ export function unlockWith(doc: InventoryDoc, session: SessionKey): void {
  */
 export async function openDocument(doc: InventoryDoc, fileSession?: SessionKey): Promise<void> {
   const previous = state.mode;
+  // A readable browser save never receives a password file's contents: the stronger protection wins.
+  const target: SaveMode = previous.kind === 'browser-plain' && fileSession
+    ? { kind: 'browser-encrypted', session: fileSession }
+    : previous;
+  // Saving stops before the new inventory is swapped in, and resumes only through a write that works.
+  // If that write fails or is refused, nothing is being saved here and the old browser save is untouched.
+  if (previous.kind !== 'none') saver.lock();
   dirty = false;
   set({
-    doc, pendingEnvelope: null, locked: false, loadProblem: null,
-    cleanDoc: doc, hasFile: true, editsSincePrompt: 0, promptDismissed: false,
+    doc, pendingEnvelope: null, locked: false, loadProblem: null, mode: { kind: 'none' }, saveStatus: 'unsaved',
+    requiredSession: fileSession ?? null, cleanDoc: doc, hasFile: true, editsSincePrompt: 0, promptDismissed: false,
   });
   go({ name: 'home' });
-  if (previous.kind === 'none') return;
-  // A readable browser save never receives a password file's contents: the stronger protection wins.
-  if (previous.kind === 'browser-plain' && fileSession) await setSaveMode({ kind: 'browser-encrypted', session: fileSession });
-  else await setSaveMode(previous);
+  if (target.kind === 'none') return;
+  await setSaveMode(target);
 }
 
 /**
@@ -292,8 +313,9 @@ export function eraseBrowserData(keepOpen: boolean): boolean {
   if (keepOpen && !state.hasFile) set({ cleanDoc: null });
   if (!keepOpen) {
     dirty = false;
+    savedDoc = null;
     set({
-      doc: null, pendingEnvelope: null, locked: false, loadProblem: null, cleanDoc: null, hasFile: false,
+      doc: null, pendingEnvelope: null, locked: false, loadProblem: null, cleanDoc: null, hasFile: false, requiredSession: null,
       editsSincePrompt: 0, promptDismissed: false,
     });
     go({ name: 'welcome' });

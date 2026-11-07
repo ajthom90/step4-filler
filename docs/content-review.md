@@ -212,6 +212,7 @@ How it behaves, for context:
 - Nothing says "saved" before the save has happened, and a failed save says so in the page header and on the save screen.
 - If another tab changed the save, this page never overwrites it on its own. Reloading is the default; replacing it is a separate, confirmed step that covers one save only.
 - Opening a password-protected file over a readable browser save switches the browser save to that file's password, so its contents are never written as readable text.
+- Opening a password-protected file stops browser saving first and resumes it only after the password-protected write succeeds. If that fails, nothing is saved in the browser, the old browser copy is untouched, and saving it as readable text needs an explicit choice that shows the warning.
 - Stopping browser saving deletes the saved copy, so a readable copy is never left behind unknowingly.
 
 | Name in copy.ts | Wording |
@@ -306,7 +307,7 @@ How it behaves, for context:
 | replaceLocked | The password-protected copy saved in this browser stays as it is until you choose how to save the opened inventory. Choosing replaces it. |
 | replaceBrowserEncrypted | Opening this file replaces your current inventory and the copy saved in this browser. The browser copy will then be protected with this file's password, not saved as readable text. Download a file first if you want to keep your current work. |
 | replaceYes | Replace and open |
-| openedNotSaved | The file is open, but it couldn't be saved in this browser. Your work is still open on this page. |
+| openedNotSaved | The file is open, but it wasn't saved in this browser. The file is still your copy, and the copy saved in this browser is unchanged. Nothing is saved here until you choose how. |
 | eraseHeading | Erase everything |
 | eraseText | This deletes your inventory from this browser and closes it on this page. It can't delete files you have already downloaded or printed, or copies in your device's backups. Download a file first if you want to keep your work. |
 | eraseYes | Yes, erase everything |

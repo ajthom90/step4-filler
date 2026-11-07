@@ -1,6 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { PASSWORD_WARNING, PLAIN_WARNING, saveCopy } from '../../content/copy';
+import type { SaveMode } from '../../core/saver';
 import { createKey, decrypt, type Envelope, type SessionKey } from '../../core/crypto';
 import type { InventoryDoc } from '../../core/doc';
 import { MAX_FILE_BYTES, parseSaved } from '../../core/fileformat';
@@ -224,7 +225,7 @@ export function Save() {
   const [newAgain, setNewAgain] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>(null);
-  const [asking, setAsking] = useState<'remove' | 'stop' | 'replace' | null>(null);
+  const [asking, setAsking] = useState<'remove' | 'stop' | 'replace' | 'plain' | null>(null);
   // Set by confirming "replace" while no mode is active; it covers exactly one save attempt.
   const [armed, setArmed] = useState(false);
 
@@ -241,7 +242,10 @@ export function Save() {
   };
   const refuse = (text: string) => setMessage({ kind: 'error', text });
 
-  const saveInBrowser = (withPassword: boolean) => {
+  const saveInBrowser = (withPassword: boolean, removeProtection = false) => {
+    // An inventory that was under a password is saved as readable text only after this explicit question.
+    if (!withPassword && state.requiredSession && !removeProtection) return setAsking('plain');
+    setAsking(null);
     if (withPassword) {
       const problem = passwordProblem(password, again);
       if (problem) return refuse(problem);
@@ -253,7 +257,7 @@ export function Save() {
         : { kind: 'browser-plain' as const };
       const permission = armed;
       setArmed(false); // used up whether or not the save works
-      await setSaveMode(next, { overwriteStale: permission });
+      await setSaveMode(next, { overwriteStale: permission, removeProtection });
       if (first) void saver.requestPersistence();
       setPassword('');
       setAgain('');
@@ -275,10 +279,13 @@ export function Save() {
   /** The confirmed replace of a newer save. With a mode in use it writes now; otherwise the next save may. */
   const replaceNewer = () => {
     setAsking(null);
-    if (mode.kind === 'none') return setArmed(true);
+    const required = state.requiredSession;
+    if (mode.kind === 'none' && !required) return setArmed(true);
+    // Never replace with a weaker mode than the inventory was under.
+    const target: SaveMode = mode.kind === 'none' && required ? { kind: 'browser-encrypted', session: required } : mode;
     void run(async () => {
-      await setSaveMode(mode, { overwriteStale: true });
-      return encrypted ? saveCopy.savedBrowserEncrypted : saveCopy.savedBrowserPlain;
+      await setSaveMode(target, { overwriteStale: true });
+      return target.kind === 'browser-encrypted' ? saveCopy.savedBrowserEncrypted : saveCopy.savedBrowserPlain;
     });
   };
 
@@ -296,7 +303,7 @@ export function Save() {
   const removePassword = () => {
     setAsking(null);
     void run(async () => {
-      await setSaveMode({ kind: 'browser-plain' });
+      await setSaveMode({ kind: 'browser-plain' }, { removeProtection: true });
       return saveCopy.passwordRemoved;
     });
   };
@@ -329,12 +336,12 @@ export function Save() {
           {asking === 'replace' && (
             <Confirm
               title={saveCopy.staleReplaceHeading}
-              yes={mode.kind === 'none' ? saveCopy.staleReplaceYesChoose : saveCopy.staleReplaceYes}
+              yes={mode.kind === 'none' && !state.requiredSession ? saveCopy.staleReplaceYesChoose : saveCopy.staleReplaceYes}
               no="Cancel"
               onYes={replaceNewer}
               onNo={() => setAsking(null)}
             >
-              {mode.kind === 'none' ? saveCopy.staleReplaceChooseWarning : saveCopy.staleReplaceWarning}
+              {mode.kind === 'none' && !state.requiredSession ? saveCopy.staleReplaceChooseWarning : saveCopy.staleReplaceWarning}
             </Confirm>
           )}
         </section>
@@ -389,6 +396,17 @@ export function Save() {
           <section>
             <h2>{saveCopy.plainHeading}</h2>
             <p>{PLAIN_WARNING}</p>
+            {asking === 'plain' && (
+              <Confirm
+                title={saveCopy.removeHeading}
+                yes={saveCopy.removeYes}
+                no={saveCopy.removeKeep}
+                onYes={() => saveInBrowser(false, true)}
+                onNo={() => setAsking(null)}
+              >
+                {PLAIN_WARNING}
+              </Confirm>
+            )}
             <p class="actions">
               <button type="button" disabled={busy || !browserOk} onClick={() => saveInBrowser(false)}>{saveCopy.labels.saveBrowserPlain}</button>
               <button type="button" disabled={busy} onClick={() => downloadFile(false)}>{saveCopy.labels.downloadPlain}</button>
