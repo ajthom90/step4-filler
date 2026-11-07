@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createKey, decrypt, encrypt, KDF_ITERATIONS, type Envelope } from '../../src/core/crypto';
 import { emptyDoc } from '../../src/core/doc';
+import { MAX_FILE_BYTES, parseSaved, serialize } from '../../src/core/fileformat';
 import { FileError } from '../../src/core/validate';
 
 const PASSWORD = 'correct horse battery';
@@ -136,16 +137,48 @@ describe('crypto', () => {
 
   it('binds format and version as additional data', async () => {
     const env = await makeEnvelope();
-    // Same key material, but the ciphertext must not open under different AAD.
     const { session } = await decrypt(env, PASSWORD);
-    const aad = new TextEncoder().encode('step4-inventory-encrypted:2');
-    await expect(
-      crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: Buffer.from(env.iv, 'base64'), additionalData: aad },
-        session.key,
-        Buffer.from(env.ciphertext, 'base64'),
-      ),
-    ).rejects.toThrow();
+    const open = (additionalData?: Uint8Array) => crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: Buffer.from(env.iv, 'base64'), ...(additionalData ? { additionalData } : {}) },
+      session.key,
+      Buffer.from(env.ciphertext, 'base64'),
+    );
+    await expect(open(new TextEncoder().encode('step4-inventory-encrypted:1'))).resolves.toBeInstanceOf(ArrayBuffer);
+    await expect(open()).rejects.toThrow();
+    await expect(open(new TextEncoder().encode('step4-inventory-encrypted:2'))).rejects.toThrow();
+  });
+
+  it('accepts a valid envelope near the file size limit without a RangeError', async () => {
+    const env = await makeEnvelope();
+    const big = { ...env, ciphertext: Buffer.alloc(3_700_000, 7).toString('base64') };
+    const text = serialize(big);
+    expect(text.length).toBeLessThan(MAX_FILE_BYTES);
+    expect(parseSaved(text).kind).toBe('encrypted');
+    await expectFileError(decrypt(big, PASSWORD), 'wrong-password');
+  });
+
+  it('reads a 100,000-iteration file but re-keys at 600,000 for the next save', async () => {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(PASSWORD), 'PBKDF2', false, ['deriveKey']);
+    const weak = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100_000 }, material,
+      { name: 'AES-GCM', length: 256 }, false, ['encrypt'],
+    );
+    const ct = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode('step4-inventory-encrypted:1') },
+      weak, new TextEncoder().encode(JSON.stringify(sampleDoc())),
+    );
+    const old: Envelope = {
+      format: 'step4-inventory-encrypted', version: 1, kdf: 'PBKDF2-SHA-256', iterations: 100_000,
+      salt: Buffer.from(salt).toString('base64'), iv: Buffer.from(iv).toString('base64'),
+      ciphertext: Buffer.from(ct).toString('base64'),
+    };
+    const { doc, session } = await decrypt(old, PASSWORD);
+    expect(doc).toEqual(sampleDoc());
+    expect(session.iterations).toBe(KDF_ITERATIONS);
+    expect((await encrypt(doc, session)).iterations).toBe(600_000);
+    expect(Buffer.from(session.salt).equals(Buffer.from(salt))).toBe(false);
   });
 
   it('a decrypted payload that is not a valid doc throws a FileError', async () => {

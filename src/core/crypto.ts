@@ -38,11 +38,12 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+// No repeated group: a grouped loop overflows the regex stack on multi-megabyte input.
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
 
 /** Strict decode: atob alone would tolerate whitespace and missing padding. */
 function fromBase64(value: string, path: string): Uint8Array {
-  if (!BASE64.test(value)) throw new FileError('corrupt', `Invalid value at ${path}`);
+  if (value.length % 4 !== 0 || !BASE64.test(value)) throw new FileError('corrupt', `Invalid value at ${path}`);
   const s = atob(value);
   const out = new Uint8Array(s.length);
   for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
@@ -160,5 +161,7 @@ export async function decrypt(
     throw new FileError('corrupt', 'Decrypted data is not valid JSON');
   }
   const doc = validateDoc(parsed);
+  // Older, weaker files stay readable, but the next save must use the current count.
+  if (decoded.iterations < KDF_ITERATIONS) return { doc, session: await createKey(password) };
   return { doc, session: { key, salt: decoded.salt, iterations: decoded.iterations } };
 }
