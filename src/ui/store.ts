@@ -48,14 +48,22 @@ const PROBLEMS: Record<string, string> = {
 };
 const GENERIC_PROBLEM = 'The saved inventory in this browser could not be read.';
 
-function readStorage(): Storage | null {
-  // The offline file never touches browser storage: other local files can share it in some browsers,
-  // so nothing is read from it and nothing is written to it.
+/**
+ * The only place the store touches `window.localStorage`. The offline file never uses browser storage: other
+ * local files can share it in some browsers, so nothing is read from it and nothing is written to it (null).
+ * Elsewhere it returns the storage, and throws when the browser blocks it.
+ */
+function browserStorage(): Storage | null {
   if (isOfflineFile()) return null;
+  const storage = window.localStorage;
+  storage.getItem(STORAGE_KEY); // blocked storage can throw on read, not just on access
+  return storage;
+}
+
+/** Storage for saving, or null when it is blocked or not used. */
+function readStorage(): Storage | null {
   try {
-    const storage = window.localStorage;
-    storage.getItem('step4-inventory'); // blocked storage can throw on read, not just on access
-    return storage;
+    return browserStorage();
   } catch {
     return null;
   }
@@ -236,7 +244,9 @@ export function dismissPrompt(): void {
  */
 export function storedSaveIsReplaceableByReadable(): boolean {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const storage = browserStorage();
+    if (storage === null) return false; // no browser save is used, so there is nothing to replace
+    const raw = storage.getItem(STORAGE_KEY);
     return raw === null || parseSaved(raw).kind === 'plain';
   } catch {
     return false; // fail closed
@@ -298,7 +308,7 @@ export function canLock(): boolean {
  */
 function readStoredForLock(): { lockedStored: LockedStored | null; pendingEnvelope: Envelope | null } {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = browserStorage()?.getItem(STORAGE_KEY) ?? null;
     if (raw === null) return { lockedStored: 'nothing', pendingEnvelope: null };
     const parsed = parseSaved(raw);
     return parsed.kind === 'encrypted'

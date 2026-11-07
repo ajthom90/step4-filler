@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Page } from '@playwright/test'
@@ -203,4 +203,48 @@ test('the offline file never uses browser storage, even when it works', async ({
   // Only the init script's own plant may have touched storage, and it ran before the page.
   expect(writes.filter((w) => w === key)).toEqual([])
   expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe(existing)
+})
+
+test('Lock in the offline file reads nothing from browser storage and says nothing is saved', async ({ page, browser }) => {
+  await begin(page)
+  await enterResentment(page)
+  await goTo(page, '#/save')
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Type it again').fill(PASSWORD)
+  const file = await download(page, 'Download a file with a password')
+
+  const key = 'step4-inventory'
+  const planted = 'planted by a sibling file: not JSON, not ours'
+  const context = await browser.newContext()
+  const fresh = await context.newPage()
+  await fresh.addInitScript(([k, v]) => { try { localStorage.setItem(k, v) } catch { /* unavailable */ } }, [key, planted])
+  await fresh.goto(OFFLINE_URL)
+  await fresh.getByLabel('Open a saved file').setInputFiles({ name: file.name, mimeType: 'application/json', buffer: Buffer.from(file.text) })
+  await fresh.getByLabel(saveCopy.labels.filePassword).fill(PASSWORD)
+  await fresh.getByRole('button', { name: saveCopy.labels.openFileButton }).click()
+  await expect(fresh.getByRole('heading', { name: 'Your inventory' })).toBeVisible()
+  await fresh.getByRole('button', { name: 'Lock', exact: true }).click()
+  await fresh.getByRole('button', { name: saveCopy.lockStaleYes }).click() // nothing is saved in the browser, so it asks first
+  await expect(fresh.getByRole('heading', { level: 1 })).toHaveText(saveCopy.unlockTitle)
+  await expect(fresh.locator('main')).toContainText(saveCopy.lockedNothingSaved)
+  expect(await fresh.evaluate((k) => localStorage.getItem(k), key)).toBe(planted)
+  await context.close()
+})
+
+test('no code reaches window.localStorage except the store helper that the offline file turns off', () => {
+  const found: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = resolve(dir, entry.name)
+      if (entry.isDirectory()) walk(path)
+      else if (/\.tsx?$/.test(entry.name)) {
+        readFileSync(path, 'utf8').split('\n').forEach((line, i) => {
+          if (/\b(?:window\.|globalThis\.)?(?:localStorage|sessionStorage|indexedDB)\b/.test(line) && !/^\s*(\/\/|\*|\/\*)/.test(line)) found.push(`${path.replace(resolve('.') + '/', '')}:${i + 1}`)
+        })
+      }
+    }
+  }
+  walk(resolve('src'))
+  expect(found).toEqual(['src/ui/store.ts:' + found[0]?.split(':')[1]]) // exactly one use: browserStorage()
+  expect(readFileSync(resolve('src/ui/store.ts'), 'utf8')).toMatch(/function browserStorage\(\)[^]*?if \(isOfflineFile\(\)\) return null;[^]*?window\.localStorage/)
 })
