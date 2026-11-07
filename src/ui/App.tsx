@@ -4,6 +4,7 @@ import { saveCopy } from '../content/copy';
 import { Footer } from './Footer';
 import { Checklist } from './screens/Checklist';
 import { Pledge } from './screens/Pledge';
+import { Print } from './screens/Print';
 import { Home } from './screens/Home';
 import { Privacy } from './screens/Privacy';
 import { StepRunner } from './screens/StepRunner';
@@ -16,17 +17,6 @@ import { routeHash, type Route } from './router';
 import { SavePrompt } from './SavePrompt';
 import { LockButton, SaveStatus } from './SaveStatus';
 import { dismissNotice, useApp } from './store';
-
-/** Screens other tasks add; each shows a plain placeholder until then. */
-function Placeholder({ title }: { title: string }) {
-  return (
-    <>
-      <h1 tabIndex={-1}>{title}</h1>
-      <p>This part is not built yet.</p>
-      <p><a href="#/home">Back to your inventory</a></p>
-    </>
-  );
-}
 
 function Problem({ message }: { message: string }) {
   return (
@@ -51,7 +41,7 @@ function Screen({ route }: { route: Route }) {
     case 'settings': return <Settings />;
     case 'checklist': return <Checklist />;
     case 'pledge': return <Pledge />;
-    case 'print': return <Placeholder title="Print or download" />;
+    case 'print': return <Print />;
     case 'save': return <Save />;
     case 'step':
       return <StepRunner inventory={route.inventory} stepKey={route.key} />;
@@ -72,7 +62,7 @@ export function App() {
     main.current?.querySelector<HTMLElement>('h1')?.focus();
   }, [hash]);
   return (
-    <div class="shell">
+    <div class={state.doc && state.route.name === 'print' ? 'shell printing' : 'shell'}>
       <header class="header">
         <a class="brand" href="#/home">{site.name}</a>
         <nav aria-label="Main">

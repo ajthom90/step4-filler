@@ -330,3 +330,39 @@ How it behaves, for context:
 | status.failed | Couldn't save. Your work is still open here. |
 | status.stale | Changed in another tab |
 | status.encrypted | Saved on this device, with a password |
+
+### Printing
+
+The print screen is new wording, and the printed forms' headings and titles are the handout's own (the `print.titles` rows). On paper, each form is laid out in the handout's column order, in landscape; the pledge is portrait and is only included if it has been started or is chosen. The disclaimer prints at the foot of every page. Wording the person typed is printed as typed.
+
+Layout choices that differ from the handout, so you can say if any should change: the instructions and the "Don't forget this!" note sit above the table instead of in rotated columns inside it, so they print once; the Earnest Prayers sit in the last column once for the whole form; each tick box prints an X when ticked.
+
+| Name in copy.ts | Wording |
+| --- | --- |
+| print.title | Print your inventory |
+| print.intro | Choose what to include. Each form below is laid out the way it will print. Then print it, or save it as a PDF from the print window. |
+| print.chooseLegend | What to print |
+| print.nothingChosen | Choose at least one section to print. |
+| print.printButton | Print or save as PDF |
+| print.previewHint | The forms are wide. Scroll sideways inside a form to see all of it. |
+| print.fileHint | Want a file you can open here later instead? |
+| print.fileLink | Save a file |
+| print.warnHeading | Before you print |
+| print.warnText | A saved PDF is readable by anyone who has it. Keep it somewhere you trust, and delete it when you no longer need it. |
+| print.warnContinue | Continue to print |
+| print.warnCancel | Cancel |
+| print.ticked | Ticked |
+| print.notTicked | Not ticked |
+| print.previews.resentments | Resentments form, scrolls sideways |
+| print.previews.fears | Fears form, scrolls sideways |
+| print.previews.harms | Sex conduct and harms form, scrolls sideways |
+| print.previews.checklist | Flaws and assets checklist, scrolls sideways |
+| print.titles.resentments | The "BIG BOOK'S" Way to Be Rid of Resentment (pages 63—67) |
+| print.titles.fears | THE BIG BOOK'S WAY OF REMOVING FEARS (PP. 67 & 68) |
+| print.titles.harms | THE BIG BOOK'S WAY TO "SENSIBLY OVERHAUL" OUR OWN SEX CONDUCT (Pages 68—70) |
+| print.titles.checklist | Checklist of Flaws and Assets |
+| print.instructionsLabel | INSTRUCTIONS: |
+| print.dontForget | Don't forget this! |
+| print.earnestHeading | The Earnest Prayers |
+| print.earnestPage | page 70 |
+| print.sexPage | page 69 |

@@ -30,6 +30,7 @@
     "@playwright/test": "1.65.0",
     "@preact/preset-vite": "2.10.6",
     "@types/node": "26.6.6",
+    "pdfjs-dist": "6.5.438",
     "typescript": "5.9.3",
     "vite": "8.3.6",
     "vitest": "5.1.0"

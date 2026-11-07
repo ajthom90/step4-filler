@@ -1,0 +1,122 @@
+/* The printed forms. On screen they are a preview on paper-white; when printed, only they remain. */
+
+.print-pages { margin-top: 1rem; }
+.print-section { margin: 1.5rem 0; }
+.form-title { font-size: 1.05rem; line-height: 1.3; margin: 0 0 0.5rem; }
+.paper-intro { font-size: 0.9rem; color: var(--muted); }
+.paper-intro p { margin: 0.4rem 0; }
+
+.scroll { max-width: 100%; overflow-x: auto; background: #fff; color: #111; border: 1px solid var(--line); border-radius: 0.25rem; }
+.scroll:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.print-form { width: 100%; min-width: 62rem; table-layout: fixed; border-collapse: collapse; background: #fff; color: #111; font-size: 0.85rem; line-height: 1.3; }
+.print-form th, .print-form td { border: 1px solid #222; padding: 0.2rem 0.35rem; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+.print-form td { height: 1.9rem; }
+.print-form th { font-weight: 600; }
+.print-form .val { white-space: pre-wrap; }
+.print-form .tick { text-align: center; }
+.print-form .right { text-align: right; }
+.print-form p, .print-form ul { margin: 0 0 0.4rem; }
+.print-form em { display: block; margin-bottom: 0.3rem; }
+
+.box { display: inline-block; width: 1.05em; height: 1.05em; border: 1px solid #222; text-align: center; font-size: 0.9em; font-weight: 700; line-height: 1; vertical-align: -0.15em; }
+.opt .box { margin-right: 0.15em; }
+
+/* Resentments */
+.resentments .c-name { width: 14%; }
+.resentments .c-cause { width: 26%; }
+.resentments .c-tick { width: 3.5%; }
+.resentments .c-defects { width: 39%; }
+.resentments .turned { height: 9.5em; padding: 0.2rem 0; text-align: left; vertical-align: bottom; }
+.turned span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
+.defects .defect { min-height: 2rem; }
+.defects .defect + .defect { margin-top: 0.4rem; }
+.defects .val { display: inline; margin-left: 0.3em; }
+
+/* Fears */
+.fears .c-fear { width: 14%; }
+.fears .c-why { width: 20%; }
+.fears .c-trust { width: 7%; }
+.fears .c-yn { width: 4.5%; }
+.fears .c-prayer { width: 12%; }
+.fears .c-be { width: 31%; }
+.fears td { height: 4.2rem; }
+.fears .prayer-cell { text-align: center; }
+
+/* Sex conduct and harms */
+.harms .c-whom { width: 9%; }
+.harms .c-where-label { width: 9%; }
+.harms .c-where { width: 15.5%; }
+.harms .c-arouse { width: 8%; }
+.harms .c-fault { width: 20%; }
+.harms .c-word { width: 2.5%; }
+.harms .c-yn { width: 5.5%; }
+.harms .c-sexprayer { width: 7%; }
+.harms .c-earnest { width: 16.5%; }
+.harms td, .harms th[scope='row'] { height: 2.4rem; }
+.harms .where-label { text-align: right; font-weight: 400; white-space: nowrap; overflow-wrap: normal; }
+.harms .word { padding: 0; text-align: center; vertical-align: middle; }
+.harms .word span { display: block; font-size: 1.1em; line-height: 1.15; }
+.harms .yn .opt { margin: 0.5rem 0; }
+.harms .prayer-cell { font-size: 0.8em; text-align: center; }
+.harms .earnest { font-size: 0.85em; }
+.plain.earnest-list { margin: 0; }
+
+/* Checklist */
+.checklist { min-width: 66rem; font-size: 0.78rem; }
+.checklist .c-flaw-tick { width: 2.4%; }
+.checklist .c-flaw { width: 15.5%; }
+.checklist .c-flaw-opposite { width: 15.43%; }
+.checklist td { height: auto; padding: 0.1rem 0.3rem; }
+.checklist sup { font-size: 0.7em; }
+.notes td { font-size: 0.9em; }
+.notes .val { min-height: 2.5rem; }
+.notes ol { margin: 0; }
+
+/* Pledge */
+.print-pages .pledge { min-width: 0; margin-top: 0.5rem; }
+.pledge th { border: 0; text-align: center; font-style: italic; font-size: 1.1em; padding-bottom: 0.5rem; }
+.pledge td { border: 0; border-bottom: 1px solid #222; height: 2rem; }
+.pledge .closing td { height: auto; border: 0; }
+.print-form .pledge-text { margin: 1.5rem auto; max-width: 28rem; border: 1px solid #222; padding: 0.6rem 0.9rem; font-weight: 700; font-style: italic; text-align: center; }
+.pledge .signature { padding-left: 50%; }
+.signature .line { min-height: 2rem; border-bottom: 1px solid #222; }
+.signature p { margin: 0.1rem 0 1rem; font-size: 0.85rem; }
+.foot { display: none; }
+
+.sheet.warning { max-width: 28rem; }
+
+@page { size: portrait; margin: 12mm; }
+@page wide { size: landscape; margin: 10mm; }
+
+@media print {
+  html, body { background: #fff; color: #000; font-size: 10pt; }
+  .shell.printing { display: block; max-width: none; min-height: 0; padding: 0; }
+  .shell.printing > :not(main) { display: none; }
+  .shell.printing main { padding: 0; overflow: visible; overflow-wrap: normal; }
+  .no-print, dialog { display: none; }
+  .print-pages { margin: 0; }
+  .print-section { margin: 0; }
+  .print-section.land { page: wide; }
+  .print-section + .print-section { break-before: page; }
+  .form-title { font-size: 13pt; text-align: center; color: #000; margin: 0 0 3mm; }
+  .paper-intro { color: #000; font-size: 8pt; }
+  .scroll { overflow: visible; border: 0; border-radius: 0; }
+  .print-form { min-width: 0; font-size: 7.5pt; }
+  .print-form td { height: 7mm; }
+  .defects .defect { min-height: 6mm; }
+  .defects .defect + .defect { margin-top: 1mm; }
+  .fears td { height: 17mm; }
+  .harms td, .harms th[scope='row'] { height: 8mm; }
+  .checklist { font-size: 6.5pt; }
+  .checklist td { height: auto; }
+  .print-form thead { display: table-header-group; }
+  .print-form tfoot.foot { display: table-footer-group; }
+  .foot td { height: 7mm; padding: 2mm 0 0; border: 0; text-align: center; font-size: 8pt; color: #000; vertical-align: bottom; }
+  .print-form tr { break-inside: auto; }
+  /* An entry stays on one page when it fits, and flows across pages when it does not. */
+  .resentments tbody { break-inside: avoid; }
+  .pledge td { height: 8mm; }
+  .pledge-text, .signature { font-size: 11pt; }
+  .pledge .closing td { height: auto; }
+}
