@@ -30,5 +30,5 @@ For the owner. Nothing here is done yet.
 
 ## Release
 
-- [ ] Choose a license before publishing the repository, and add it (a `LICENSE` file and the `license` field in `package.json`). There is none yet, on purpose.
-- [ ] Decide when to make the repository public. Check first that nothing in `reference/` or `.superpowers/` is committed, and that the handout is not in the history.
+- [x] License: MIT (`LICENSE`, and the `license` field in `package.json`).
+- [x] Repository made public on 2026-11-07, after checking that nothing in `reference/` or `.superpowers/` was ever committed and that the handout is not in the history.
