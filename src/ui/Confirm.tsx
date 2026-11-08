@@ -3,24 +3,25 @@ import { useEffect, useId, useRef, useState } from 'preact/hooks';
 
 /**
  * A question with two answers, announced as an alert dialog named by its visible title. Keyboard focus moves
- * to its first button when it opens, so the question is not missed and focus never drops to the page.
+ * to the No button when it opens, so the question is not missed, focus never drops to the page, and a second
+ * press of Enter keeps things as they are instead of doing something that can't be undone.
  * The caller returns focus to what opened it on cancel (see useFocusReturn).
  */
 export function Confirm({ title, children, yes, no, onYes, onNo }: {
   title: string; children: ComponentChildren; yes: string; no: string; onYes: () => void; onNo: () => void;
 }) {
   const id = useId();
-  const box = useRef<HTMLDivElement>(null);
+  const noButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    box.current?.querySelector('button')?.focus();
+    noButton.current?.focus();
   }, []);
   return (
-    <div ref={box} class="notice" role="alertdialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-text`}>
+    <div class="notice" role="alertdialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-text`}>
       <p id={`${id}-title`}><strong>{title}</strong></p>
       <p id={`${id}-text`}>{children}</p>
       <p class="actions">
         <button type="button" class="primary" onClick={onYes}>{yes}</button>
-        <button type="button" onClick={onNo}>{no}</button>
+        <button ref={noButton} type="button" onClick={onNo}>{no}</button>
       </p>
     </div>
   );
